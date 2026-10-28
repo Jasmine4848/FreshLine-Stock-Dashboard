@@ -53,7 +53,7 @@ def render(asof, rows, checked):
     trs = '\n'.join(
         f'''        <tr><td><div class="name">{e(r['name'])}</div><div class="spec">{e(r['spec'])}</div></td>
           <td><span class="qty">{'-' if r['boxes'] is None else f"{r['boxes']:,}"}</span>{'' if r['boxes'] is None else '<small>박스</small>'}</td>
-          <td>{weeks_txt(r['weeks'])}</td>
+          <td class="days">{weeks_txt(r['weeks'])}</td>
           <td><span class="chip {chip[r['status']]}">{e(r['status'])}</span></td></tr>''' for r in rows)
     wd = '월화수목금토일'[asof.weekday()]
     return f'''<!doctype html>
@@ -112,6 +112,14 @@ def render(asof, rows, checked):
   .chip::before {{ content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }}
   .chip.ok {{ color:var(--ok); }} .chip.warn {{ color:var(--warn); }} .chip.bad {{ color:var(--bad); }} .chip.idle {{ color:var(--muted); }}
   footer {{ display:flex; justify-content:center; padding-top:16px; margin-top:4px; border-top:1px solid var(--line); }}
+  @media (max-width: 600px) {{
+    table {{ table-layout:auto; }}
+    col.c1, col.c2, col.c3, col.c4 {{ width:auto; }}
+    .days {{ display:none; }}
+    th, td {{ padding:10px 6px; }}
+    .card {{ padding:16px 12px; }}
+    .chip {{ white-space:normal; text-align:left; line-height:1.3; }}
+  }}
   .brand {{ font-weight:700; font-size:1.5rem; letter-spacing:0.06em; }}
 </style>
 </head>
@@ -132,11 +140,11 @@ def render(asof, rows, checked):
   </section>
   <section class="card">
     <h2>품목별 현재고</h2>
-    <p class="note">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
+    <p class="note days">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
     <div class="scroll">
       <table>
         <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
-        <thead><tr><th>품목</th><th>총 보유 수량</th><th>예상 소진</th><th>상태</th></tr></thead>
+        <thead><tr><th>품목</th><th>총 보유 수량</th><th class="days">예상 소진</th><th>상태</th></tr></thead>
         <tbody>
 {trs}
         </tbody>

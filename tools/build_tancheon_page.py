@@ -37,7 +37,7 @@ def compute(items, inb, out):
         packs = sum(q for d, k, q in inb if k == n) - sum(q for d, k, q, _ in out if k == n)
         wk = sum(q for d, k, q, kind in out if k == n and kind == '출고' and from4 <= d <= asof) / 4
         weeks = packs / wk if wk > 0 else None
-        status = '품절' if packs <= 0 else ('곧 소진' if weeks is not None and weeks < TH else ('여유' if wk > 0 else '최근 출고 없음'))
+        status = '품절' if packs <= 0 else ('곧 소진' if weeks is not None and weeks < TH else '여유')
         rows.append(dict(name=n, spec=f"{it['kg']:g}kg × {per}팩", boxes=int(packs // per) if packs >= 0 else None,
                          weeks=weeks, status=status))
     return asof, rows

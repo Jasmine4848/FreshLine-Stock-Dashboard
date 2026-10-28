@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>탄천갈매기 소스 재고</title>
+<style>
+  :root { --bg:#f5f6f4; --panel:#ffffff; --fg:#1d2321; --muted:#68716d; --line:#dfe3e0; --head:#eef1ef;
+          --warn:#b45309; --bad:#c42b1c; --ok:#2f7d4f; --zebra:#f8f9f8; color-scheme: light;
+          --font:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141816; --panel:#1c211f; --fg:#e8ece9; --muted:#9aa39e; --line:#2f3633; --head:#252b28;
+          --warn:#f0a24a; --bad:#ff7a6b; --ok:#6cc58e; --zebra:#202623; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); font-size:15px; line-height:1.5;
+          padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .wrap { max-width: 60rem; margin: 0 auto; display:grid; gap: 20px; }
+  h1 { margin:0; font-size: 1.75rem; font-weight:700; }
+  .lede { margin:4px 0 0; color:var(--muted); }
+  .lede b { color:var(--fg); }
+  .tiles { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+  .tile { --tone: var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:grid; grid-template-rows:auto 1fr; }
+  .tile-head { background:var(--head); border-bottom:1px solid var(--line); padding:8px 16px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .tile-title { margin:0; font-weight:700; color:var(--tone); }
+  .tile-sub { margin:0; font-size:12.5px; color:var(--muted); }
+  .tile-body { padding:14px 16px 16px; display:flex; align-items:center; min-height:5.5rem; }
+  .value { font-size:1.9rem; font-weight:700; font-variant-numeric:tabular-nums; }
+  .value small { font-size:15px; font-weight:400; color:var(--muted); margin-left:4px; }
+  .names { font-weight:700; font-size:1.1rem; line-height:1.7; }
+  .alert:not(.on) .names { font-weight:400; color:var(--muted); font-size:15px; }
+  .alert.warn { --tone: var(--warn); } .alert.bad { --tone: var(--bad); }
+  .alert.on { border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
+  .alert.on .tile-head { background:var(--tone); border-bottom-color:var(--tone); }
+  .alert.on .tile-title { color:var(--panel); }
+  .alert.on .tile-sub { color: color-mix(in srgb, var(--panel) 85%, transparent); }
+  .alert.on .tile-body { background: color-mix(in srgb, var(--tone) 7%, var(--panel)); }
+  .alert.on .names { color:var(--tone); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; display:grid; gap:8px; min-width:0; }
+  .card h2 { margin:0; font-size:1.1rem; }
+  .note { margin:0; font-size:12.5px; color:var(--muted); }
+  .scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; font-variant-numeric:tabular-nums; }
+  col.c1 { width:34%; } col.c2, col.c3, col.c4 { width:22%; }
+  th { font-size:12.5px; color:var(--muted); font-weight:700; padding:8px 12px; border-bottom:2px solid var(--line); text-align:center; white-space:nowrap; }
+  th:first-child { text-align:left; }
+  td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }
+  td:first-child { text-align:left; }
+  tbody tr:nth-child(even) td { background:var(--zebra); }
+  tbody tr:last-child td { border-bottom:0; }
+  .name { font-weight:700; } .spec { font-size:12.5px; color:var(--muted); }
+  .qty { font-weight:700; font-size:1.1rem; } td small { font-size:12.5px; color:var(--muted); margin-left:3px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; padding:2px 9px; border-radius:999px; background: color-mix(in srgb, currentColor 11%, transparent); }
+  .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); } .chip.idle { color:var(--muted); }
+  footer { display:flex; justify-content:center; padding-top:16px; margin-top:4px; border-top:1px solid var(--line); }
+  .brand { font-weight:700; font-size:1.5rem; letter-spacing:0.06em; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>탄천갈매기 소스 재고</h1>
+    <p class="lede"><b>2026-10-29 (목)</b> 기준 · 운영 중인 소스 <b>9</b>종</p>
+  </header>
+  <section class="tiles">
+    <div class="tile"><div class="tile-head"><p class="tile-title">총 재고</p><p class="tile-sub">운영 품목 합계</p></div>
+      <div class="tile-body"><span class="value">63<small>박스</small></span></div></div>
+    <div class="tile alert warn on"><div class="tile-head"><p class="tile-title">품절 예정</p><p class="tile-sub">재고 5박스 미만</p></div>
+      <div class="tile-body"><div class="names">고기국수육수<br>제육볶음소스<br>비빔국수양념장</div></div></div>
+    <div class="tile alert bad"><div class="tile-head"><p class="tile-title">품절</p><p class="tile-sub">재고 없음</p></div>
+      <div class="tile-body"><div class="names">없음</div></div></div>
+  </section>
+  <section class="card">
+    <h2>품목별 현재고</h2>
+    <p class="note">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
+    <div class="scroll">
+      <table>
+        <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+        <thead><tr><th>품목</th><th>총 보유 수량</th><th>예상 소진</th><th>상태</th></tr></thead>
+        <tbody>
+        <tr><td><div class="name">레몬간장소스</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">24</span><small>박스</small></td>
+          <td>약 5주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">파채소스</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">7</span><small>박스</small></td>
+          <td>약 9주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">고기국수육수</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">4</span><small>박스</small></td>
+          <td>-</td>
+          <td><span class="chip idle">최근 출고 없음</span></td></tr>
+        <tr><td><div class="name">양념소금</div><div class="spec">1kg × 10팩</div></td>
+          <td><span class="qty">8</span><small>박스</small></td>
+          <td>-</td>
+          <td><span class="chip idle">최근 출고 없음</span></td></tr>
+        <tr><td><div class="name">된장찌개육수</div><div class="spec">3kg × 5팩</div></td>
+          <td><span class="qty">5</span><small>박스</small></td>
+          <td>약 4주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">제육볶음소스</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">2</span><small>박스</small></td>
+          <td>약 4주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">멜젓소스</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">5</span><small>박스</small></td>
+          <td>약 3주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">우민찌볶음소스</div><div class="spec">2kg × 6팩</div></td>
+          <td><span class="qty">7</span><small>박스</small></td>
+          <td>약 28주</td>
+          <td><span class="chip ok">여유</span></td></tr>
+        <tr><td><div class="name">비빔국수양념장</div><div class="spec">5kg × 3팩</div></td>
+          <td><span class="qty">1</span><small>박스</small></td>
+          <td>약 1주</td>
+          <td><span class="chip warn">곧 소진</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <footer><span class="brand">(주)프레시라인</span></footer>
+</div>
+</body>
+</html>

@@ -3,6 +3,7 @@
 """
 import sys, html, datetime as dt
 import openpyxl
+from zoneinfo import ZoneInfo
 
 LOW = 5   # 품절 예정 기준(박스 미만)
 TH = 2    # 상태 '곧 소진' 기준(주)
@@ -41,7 +42,7 @@ def compute(items, inb, out):
                          weeks=weeks, status=status))
     return asof, rows
 
-def render(asof, rows):
+def render(asof, rows, checked):
     e = html.escape
     total = sum(r['boxes'] or 0 for r in rows)
     low = [r['name'] for r in rows if r['status'] != '품절' and r['boxes'] is not None and r['boxes'] < LOW]
@@ -75,6 +76,7 @@ def render(asof, rows):
   h1 {{ margin:0; font-size: 1.75rem; font-weight:700; }}
   .lede {{ margin:4px 0 0; color:var(--muted); }}
   .lede b {{ color:var(--fg); }}
+  .checked {{ margin:2px 0 0; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }}
   .tiles {{ display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }}
   .tile {{ --tone: var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:grid; grid-template-rows:auto 1fr; }}
   .tile-head {{ background:var(--head); border-bottom:1px solid var(--line); padding:8px 16px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }}
@@ -118,6 +120,7 @@ def render(asof, rows):
   <header>
     <h1>탄천갈매기 소스 재고</h1>
     <p class="lede"><b>{asof:%Y-%m-%d} ({wd})</b> 기준 · 운영 중인 소스 <b>{len(rows)}</b>종</p>
+    <p class="checked">마지막 확인: {checked:%Y-%m-%d %H:%M}</p>
   </header>
   <section class="tiles">
     <div class="tile"><div class="tile-head"><p class="tile-title">총 재고</p><p class="tile-sub">운영 품목 합계</p></div>
@@ -149,5 +152,6 @@ def render(asof, rows):
 if __name__ == '__main__':
     items, inb, out = load(sys.argv[1])
     asof, rows = compute(items, inb, out)
-    open(sys.argv[2], 'w', encoding='utf-8').write(render(asof, rows))
+    checked = dt.datetime.now(ZoneInfo('Asia/Seoul'))
+    open(sys.argv[2], 'w', encoding='utf-8').write(render(asof, rows, checked))
     print(asof, [(r['name'], r['boxes'], r['status']) for r in rows])

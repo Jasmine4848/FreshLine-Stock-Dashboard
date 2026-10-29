@@ -96,6 +96,7 @@
   .stock { table-layout:fixed; }
   .stock col.c1 { width:34%; } .stock col.c2, .stock col.c3, .stock col.c4 { width:22%; }
   .name { font-weight:700; }
+  .brandline { font-size:12px; color:var(--faint); }
   .qty { font-weight:700; font-size:1.1rem; } td small { font-size:12px; color:var(--muted); margin-left:3px; }
   .chip { display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px; }
   .chip.ok { color:var(--ok); background:var(--ok-soft); } .chip.warn { color:var(--warn); background:var(--warn-soft); } .chip.bad { color:var(--bad); background:var(--bad-soft); }
@@ -121,7 +122,7 @@
   .sums { display:flex; flex-wrap:wrap; gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; width:max-content; max-width:100%; }
   .sum { display:inline-flex; gap:8px; align-items:baseline; padding:8px 16px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; border-right:1px solid var(--line); background:var(--head); }
   .sum:last-child { border-right:0; }
-  .sum b { color:var(--fg); font-size:15px; }
+  .sum b { color:var(--fg); font-size:15px; white-space:nowrap; }
   .sum.in b { color:var(--accent); }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
@@ -131,7 +132,8 @@
   .ledger .w-date { width:17%; } .ledger .w-kind { width:11%; } .ledger .w-store { width:18%; } .ledger .w-item { width:18%; } .ledger .w-qty { width:12%; } .ledger .w-memo { width:24%; }
   .ledger.no-memo .w-date { width:22%; } .ledger.no-memo .w-kind { width:14%; } .ledger.no-memo .w-store { width:22%; } .ledger.no-memo .w-item { width:24%; } .ledger.no-memo .w-qty { width:18%; }
   .ledger td { overflow:hidden; text-overflow:ellipsis; }
-  .ledger.no-memo .opt { display:none; }
+  .ledger.no-memo .opt, .ledger.no-store .st { display:none; }
+  .ledger.no-store .w-item { width:26%; } .ledger.no-store.no-memo .w-item { width:34%; } .ledger.no-store.no-memo .w-date { width:26%; } .ledger.no-store.no-memo .w-kind { width:18%; } .ledger.no-store.no-memo .w-qty { width:22%; }
   .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:4px; background:var(--head); color:var(--muted); border:1px solid var(--line); }
   .kind.in { background:var(--accent-soft); color:var(--accent); border-color:transparent; }
   .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; }
@@ -212,7 +214,7 @@
 
       <section class="tiles">
         <div class="tile">
-          <div class="tile-top"><p class="tile-title">총 재고</p><p class="tile-sub">전체 품목 합계</p></div>
+          <div class="tile-top"><p class="tile-title">총 재고</p><p class="tile-sub" id="t-total-sub">전체 품목 합계</p></div>
           <span class="value"><span id="t-total"></span><small id="t-unit"></small></span>
         </div>
         <div class="tile alert warn" id="t-low-tile">
@@ -265,7 +267,7 @@
         <div class="sums" id="sums"></div>
         <div class="ledger-box">
           <table class="ledger" id="ledger">
-            <thead><tr><th class="w-date">일자</th><th class="w-kind">구분</th><th class="w-store">점포명</th><th class="w-item">품목</th><th class="w-qty">수량</th><th class="l w-memo opt">비고</th></tr></thead>
+            <thead><tr><th class="w-date">일자</th><th class="w-kind">구분</th><th class="w-store st">점포명</th><th class="w-item">품목</th><th class="w-qty">수량</th><th class="l w-memo opt">비고</th></tr></thead>
             <tbody id="ledger-body"></tbody>
           </table>
           <div class="empty" id="ledger-empty" hidden>선택한 기간에 입출고 내역이 없습니다.</div>
@@ -325,16 +327,34 @@
   // 화면에서만 브랜드 접두어를 줄여 보여 준다 (예: '삐삣버거 수원점' → '수원점'). 엑셀에는 원래 이름 그대로.
   const shortStore = (s) => { if (!s) return '-'; const p = s.trim().split(/\s+/); return p.length > 1 ? p.slice(1).join(' ') : s; };
 
+  // 수량 표시: 박스 단위는 그대로, 박스입수가 있으면 'N박스 M팩', 없으면 기본 단위 그대로
+  const boxes = (s) => (s['단위'] === '박스' ? s['수량'] : (s['입수'] ? s['수량'] / s['입수'] : null));
+  function qtyNodes(s) {
+    const q = s['수량'], u = s['단위'], p = s['입수'];
+    if (u === '박스' || !p || q < 0) return [el('span', 'qty', fmt(q)), el('small', '', u)];
+    const b = Math.floor(q / p), r = Math.round((q - b * p) * 10) / 10;
+    const out = [];
+    if (b > 0 || r === 0) out.push(el('span', 'qty', fmt(b)), el('small', '', '박스'));
+    if (r > 0) { if (out.length) out.push(' '); out.push(el('span', 'qty', fmt(r)), el('small', '', u)); }
+    return out;
+  }
+  const unitSums = (rows) => {
+    const m = new Map(); rows.forEach((r) => m.set(r['단위'], (m.get(r['단위']) || 0) + r['수량']));
+    return m.size ? [...m].map(([u, v]) => `${fmt(v)}${u}`).join(' · ') : '0';
+  };
+
   function show() {
     document.title = `${D.name} 재고 현황`;
     $('d-title').textContent = D.name;
     $('d-asof').textContent = `${D.asof} (${wd(D.asof)})`;
     $('d-count').textContent = D.stock.length;
     $('d-checked').textContent = D.checked;
-    const total = D.stock.reduce((a, s) => a + Math.max(0, s['박스']), 0);
-    $('t-total').textContent = fmt(total); $('t-unit').textContent = D.unit;
+    const conv = D.stock.filter((s) => boxes(s) != null);
+    const total = conv.reduce((a, s) => a + Math.max(0, boxes(s)), 0);
+    $('t-total').textContent = fmt(Math.floor(total * 10) / 10); $('t-unit').textContent = '박스';
+    $('t-total-sub').textContent = conv.length === D.stock.length ? (D.stock.every((s) => s['단위'] === '박스') ? '전체 품목 합계' : '박스 환산 합계') : '박스 단위 품목 합계';
     $('t-low-n').textContent = D.low;
-    const low = D.stock.filter((s) => s['상태'] !== '품절' && s['박스'] < D.low).map((s) => s['품목']);
+    const low = D.stock.filter((s) => s['상태'] !== '품절' && boxes(s) != null && boxes(s) < D.low).map((s) => s['품목']);
     const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
     $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
     $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);
@@ -342,10 +362,11 @@
     const chip = { '여유': 'ok', '곧 소진': 'warn', '품절': 'bad' };
     $('stock-body').replaceChildren(...D.stock.map((s) => {
       const tr = el('tr');
-      const q = el('td', 'c'); q.append(el('span', 'qty', fmt(s['박스'])), el('small', '', D.unit));
+      const q = el('td', 'c'); q.append(...qtyNodes(s));
       const w = s['소진주'] == null ? '-' : (s['소진주'] < 1 ? '1주 미만' : `약 ${Math.floor(s['소진주'])}주`);
       const st = el('td', 'c'); st.append(el('span', `chip ${chip[s['상태']]}`, s['상태']));
-      tr.append(el('td', 'l name', s['품목']), q, el('td', 'c days', w), st);
+      const nm = el('td', 'l'); nm.append(el('div', 'name', s['품목'])); if (s['브랜드']) nm.append(el('div', 'brandline', s['브랜드']));
+      tr.append(nm, q, el('td', 'c days', w), st);
       return tr;
     }));
 
@@ -389,25 +410,26 @@
       const tr = el('tr');
       const d = el('td', ''); d.append(el('span', 'yr', r['일자'].slice(0, 5)), r['일자'].slice(5), el('span', 'wd', `(${wd(r['일자'])})`));
       const k = el('td', ''); k.append(el('span', r['구분'] === '입고' ? 'kind in' : 'kind', r['구분']));
-      const store = el('td', '', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
-      const q = el('td', ''); q.append(el('b', '', fmt(r['수량'])), el('small', '', D.unit));
+      const store = el('td', 'st', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
+      const q = el('td', ''); q.append(el('b', '', fmt(r['수량'])), el('small', '', r['단위']));
       tr.append(d, k, store, el('td', '', r['품목']), q, el('td', 'memo opt', r['비고'] || ''));
       return tr;
     }));
     $('ledger-empty').hidden = rows.length > 0;
     $('ledger').classList.toggle('no-memo', !rows.some((r) => r['비고']));
-    const sin = rows.filter((r) => r['구분'] === '입고').reduce((a, r) => a + r['수량'], 0);
-    const sout = rows.filter((r) => r['구분'] === '출고').reduce((a, r) => a + r['수량'], 0);
+    $('ledger').classList.toggle('no-store', !D.rows.some((r) => r['점포']));
+    const sin = unitSums(rows.filter((r) => r['구분'] === '입고'));
+    const sout = unitSums(rows.filter((r) => r['구분'] === '출고'));
     const pill = (cls, label, val) => { const s = el('span', `sum ${cls}`); s.append(label, el('b', '', val)); return s; };
-    $('sums').replaceChildren(pill('', '조회', `${rows.length}건`), pill('in', '입고', `${fmt(sin)}${D.unit}`), pill('', '출고', `${fmt(sout)}${D.unit}`));
+    $('sums').replaceChildren(pill('', '조회', `${rows.length}건`), pill('in', '입고', sin), pill('', '출고', sout));
   }
 
   $('dl').addEventListener('click', () => {
     if (!D) return;
     if (typeof XLSX === 'undefined') { $('dl').textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
-    const rows = filtered().map((r) => ({ '일자': r['일자'], '구분': r['구분'], '점포명': r['점포'], '품목': r['품목'], [`수량(${D.unit})`]: r['수량'], '비고': r['비고'] }));
-    const ws = XLSX.utils.json_to_sheet(rows, { header: ['일자', '구분', '점포명', '품목', `수량(${D.unit})`, '비고'] });
-    ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 10 }, { wch: 30 }];
+    const rows = filtered().map((r) => ({ '일자': r['일자'], '구분': r['구분'], '점포명': r['점포'], '품목': r['품목'], '수량': r['수량'], '단위': r['단위'], '비고': r['비고'] }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['일자', '구분', '점포명', '품목', '수량', '단위', '비고'] });
+    ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 6 }, { wch: 30 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '입출고내역');
     XLSX.writeFile(wb, `${D.name}_입출고내역_${$('f-from').value || '처음'}_${$('f-to').value || D.asof}.xlsx`);
   });

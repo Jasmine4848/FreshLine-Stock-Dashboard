@@ -172,7 +172,8 @@ def build(cfg, base_dir):
         wk = sum(r['수량'] for r in mine if r['구분'] == '출고' and from4 <= r['일자'] <= asof and not any(w in r['비고'] for w in waste)) / 4
         weeks = q / wk if wk > 0 else None
         boxes = q if it['단위'] == '박스' else (q // it['입수'] if it['입수'] else None)
-        low_soon = cfg.get('low_soon') and boxes is not None and boxes < LOW_BOX   # 설정에 low_soon 이 있으면 5박스 미만도 '곧 소진'
+        # 설정에 low_soon 이 있으면 5박스 미만(박스로 못 바꾸는 품목은 5개 미만)도 '곧 소진'
+        low_soon = cfg.get('low_soon') and (boxes if boxes is not None else q) < LOW_BOX
         status = '품절' if q <= 0 else ('곧 소진' if low_soon or (weeks is not None and weeks < TH_WEEKS) else '여유')
         stock.append({'품목': n, '브랜드': it.get('브랜드', ''), '수량': q, '단위': it['단위'], '입수': it['입수'], '소진주': weeks, '상태': status})
     return asof, stock, rows
@@ -198,7 +199,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows = build(cfg, base_dir)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'low_any': bool(cfg.get('low_soon')), 'stock': stock, 'rows': rows}
         json.dump(encrypt(payload, pws[cfg['id']]), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock]))
     for r in results: print(r)

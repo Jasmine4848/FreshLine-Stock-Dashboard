@@ -111,6 +111,11 @@
   .filters { display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end; }
   .filters .f { display:grid; gap:5px; }
   .filters label { font-size:12px; color:var(--muted); font-weight:700; }
+  .filters input[type=search] { padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:14rem; }
+  .filters input[type=search]:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .stock-filters { margin:4px 0 12px; }
+  .stock-filters select, .stock-filters input[type=search] { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
+  .stock .empty td { text-align:center; color:var(--muted); padding:22px 8px; }
   .filters select { padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:6.5rem; }
   .datebox { position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:9.5rem; cursor:pointer; font-variant-numeric:tabular-nums; }
   .datebox::after { content:""; width:14px; height:14px; margin-left:auto; opacity:.55; background: currentColor;
@@ -166,6 +171,7 @@
     .filters .f { flex: 1 1 8rem; }
     .filters .datebox { width:100%; min-width:0; }
     .filters select { width:100%; }
+    .filters input[type=search] { width:100%; min-width:0; }
     .tilde { display:none; }
     .toolbar .btn { width:100%; }
     .sums { width:100%; } .sum { flex:1; justify-content:center; padding:8px 6px; }
@@ -233,6 +239,10 @@
         <div class="card-head">
           <h2>품목별 현재고</h2>
           <p class="note days">예상 소진: 최근 4주 평균 출고량 기준의 대략적인 기간</p>
+        </div>
+        <div class="filters stock-filters">
+          <div class="f"><label for="s-q">품목 검색</label><input type="search" id="s-q" placeholder="품목명 입력" autocomplete="off"></div>
+          <div class="f"><label for="s-status">상태</label><select id="s-status"><option value="">전체</option><option>여유</option><option>곧 소진</option><option>품절</option></select></div>
         </div>
         <div class="frame">
           <table class="stock">
@@ -377,8 +387,11 @@
       const st = el('td', 'c'); st.append(el('span', `chip ${chip[s['상태']]}`, s['상태']));
       const nm = el('td', 'l'); nm.append(el('div', 'name', s['품목'])); if (s['브랜드']) nm.append(el('div', 'brandline', s['브랜드']));
       tr.append(nm, q, el('td', 'c days', w), st);
+      tr.dataset.name = (s['품목'] + ' ' + (s['브랜드'] || '')).toLowerCase().replace(/\s+/g, '');
+      tr.dataset.status = s['상태'];
       return tr;
     }));
+    $('s-q').value = ''; $('s-status').value = ''; filterStock();
 
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
@@ -386,6 +399,19 @@
     setRange('this');
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
   }
+
+  function filterStock() {
+    const q = $('s-q').value.toLowerCase().replace(/\s+/g, ''), st = $('s-status').value;
+    const body = $('stock-body'); body.querySelector('.empty')?.remove();
+    let n = 0;
+    for (const tr of body.rows) {
+      const ok = (!q || tr.dataset.name.includes(q)) && (!st || tr.dataset.status === st);
+      tr.hidden = !ok; if (ok) n++;
+    }
+    if (!n) { const tr = el('tr', 'empty'); const td = el('td', '', '조건에 맞는 품목이 없습니다.'); td.colSpan = 4; tr.append(td); body.append(tr); }
+  }
+  $('s-q').addEventListener('input', filterStock);
+  $('s-status').addEventListener('change', filterStock);
 
   function setRange(kind) {
     const end = new Date(D.asof + 'T00:00:00');

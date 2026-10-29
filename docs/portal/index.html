@@ -219,7 +219,7 @@
         </div>
         <div class="tile alert warn" id="t-low-tile">
           <div class="tile-top"><p class="tile-title">품절 예정</p><span class="tag">확인 필요</span></div>
-          <p class="tile-sub">재고 <span id="t-low-n"></span>박스 미만 품목</p>
+          <p class="tile-sub" id="t-low-sub">재고 <span id="t-low-n"></span>박스 미만 품목</p>
           <div class="names" id="t-low"></div>
         </div>
         <div class="tile alert bad" id="t-out-tile">
@@ -351,10 +351,21 @@
     $('d-checked').textContent = D.checked;
     const conv = D.stock.filter((s) => boxes(s) != null);
     const total = conv.reduce((a, s) => a + Math.max(0, boxes(s)), 0);
-    $('t-total').textContent = fmt(Math.floor(total * 10) / 10); $('t-unit').textContent = '박스';
-    $('t-total-sub').textContent = conv.length === D.stock.length ? (D.stock.every((s) => s['단위'] === '박스') ? '전체 품목 합계' : '박스 환산 합계') : '박스 단위 품목 합계';
-    $('t-low-n').textContent = D.low;
-    const low = D.stock.filter((s) => s['상태'] !== '품절' && boxes(s) != null && boxes(s) < D.low).map((s) => s['품목']);
+    const units = [...new Set(D.stock.map((s) => s['단위']))];
+    const loose = !conv.length && units.length === 1;   // 박스 환산 없이 낱개로만 보는 고객사
+    if (loose) {
+      $('t-total').textContent = fmt(D.stock.reduce((a, s) => a + Math.max(0, s['수량']), 0)); $('t-unit').textContent = units[0];
+      $('t-total-sub').textContent = '전체 품목 합계';
+      $('t-low-sub').textContent = '곧 소진 예상 품목';
+    } else {
+      $('t-total').textContent = fmt(Math.floor(total * 10) / 10); $('t-unit').textContent = '박스';
+      $('t-total-sub').textContent = conv.length === D.stock.length ? (D.stock.every((s) => s['단위'] === '박스') ? '전체 품목 합계' : '박스 환산 합계') : '박스 단위 품목 합계';
+      $('t-low-sub').innerHTML = '재고 <span id="t-low-n"></span>박스 미만 품목';
+      $('t-low-n').textContent = D.low;
+    }
+    const low = loose
+      ? D.stock.filter((s) => s['상태'] === '곧 소진').map((s) => s['품목'])
+      : D.stock.filter((s) => s['상태'] !== '품절' && boxes(s) != null && boxes(s) < D.low).map((s) => s['품목']);
     const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
     $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
     $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);

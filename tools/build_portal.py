@@ -151,6 +151,8 @@ LOADERS = {'standard': load_standard, 'pack_info': load_pack_info, 'brand_pack':
 def build(cfg, base_dir):
     wb = openpyxl.load_workbook(os.path.join(base_dir, cfg['file']), data_only=True)
     items, rows = LOADERS[cfg['kind']](wb, cfg)
+    if cfg.get('no_box'):                      # 박스 환산 없이 낱개로만 표시
+        for it in items: it['입수'] = None
     start = cfg['start']
     rows.sort(key=lambda x: (x['일자'], {'입고': 0, '조정': 1, '출고': 2}[x['구분']]))
     asof = max(r['일자'] for r in rows) if rows else start

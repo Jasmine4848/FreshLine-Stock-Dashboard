@@ -158,7 +158,9 @@ def build(cfg, base_dir):
     from4 = (end - dt.timedelta(days=27)).isoformat()
     waste = ('폐기', '파손')
     stock = []
+    hide = set(cfg.get('hide_items') or [])   # 운영 중단 품목: 재고표에서만 빼고 입출고 내역은 그대로 둔다
     for it in items:
+        if it['품목'] in hide: continue
         n = it['품목']
         mine = [r for r in rows if r['품목'] == n and r['일자'] >= start]
         q = it['기초'] + sum(r['수량'] for r in mine if r['구분'] == '입고') - sum(r['수량'] for r in mine if r['구분'] == '출고') + sum(r['수량'] for r in mine if r['구분'] == '조정')

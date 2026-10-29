@@ -113,6 +113,10 @@
   .sum.in b { color:var(--accent); }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:10px; }
   .ledger th { position:sticky; top:0; z-index:1; }
+  .ledger { table-layout:fixed; }
+  .ledger col.k-date { width:17%; } .ledger col.k-kind { width:10%; } .ledger col.k-store { width:19%; }
+  .ledger col.k-item { width:19%; } .ledger col.k-qty { width:12%; } .ledger col.k-memo { width:23%; }
+  .ledger td { overflow:hidden; text-overflow:ellipsis; }
   .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:var(--head); color:var(--muted); }
   .kind.in { background:var(--accent-soft); color:var(--accent); }
   .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; min-width:8rem; }
@@ -128,6 +132,7 @@
     .stock { table-layout:auto; } .stock col { width:auto !important; }
     .days, .ledger .opt, .ledger .yr { display:none; }
     .ledger th, .ledger td { padding:10px 6px; }
+    .ledger { table-layout:auto; } .ledger col { width:auto !important; }
     .ledger .wd { margin-left:2px; }
     th, td { padding:10px 8px; }
     .card { padding:16px 12px; }
@@ -213,7 +218,8 @@
     <div class="sums" id="sums"></div>
     <div class="ledger-box">
       <table class="ledger">
-        <thead><tr><th class="l">일자</th><th class="c">구분</th><th class="l">점포명</th><th class="l">품목</th><th class="r">수량</th><th class="l opt">비고</th></tr></thead>
+        <colgroup><col class="k-date"><col class="k-kind"><col class="k-store"><col class="k-item"><col class="k-qty"><col class="k-memo opt"></colgroup>
+        <thead><tr><th class="l">일자</th><th class="c">구분</th><th class="l">점포명</th><th class="l">품목</th><th class="c">수량</th><th class="l opt">비고</th></tr></thead>
         <tbody id="ledger-body"></tbody>
       </table>
       <div class="empty" id="ledger-empty" hidden>선택한 기간에 입출고 내역이 없습니다.</div>
@@ -336,7 +342,7 @@
       const d = el('td', 'l'); d.append(el('span', 'yr', r['일자'].slice(0, 5)), r['일자'].slice(5), el('span', 'wd', `(${wd(r['일자'])})`));
       const k = el('td', 'c'); k.append(el('span', r['구분'] === '입고' ? 'kind in' : 'kind', r['구분']));
       const store = el('td', 'l', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
-      const q = el('td', 'r'); q.append(el('b', '', fmt(r['수량'])), el('small', '', D.unit));
+      const q = el('td', 'c'); q.append(el('b', '', fmt(r['수량'])), el('small', '', D.unit));
       tr.append(d, k, store, el('td', 'l', r['품목']), q, el('td', 'l memo opt', r['비고'] || ''));
       return tr;
     }));

@@ -238,11 +238,11 @@
       <section class="card">
         <div class="card-head">
           <h2>품목별 현재고</h2>
-          <p class="note days">예상 소진: 최근 4주 평균 출고량 기준의 대략적인 기간</p>
+          <p class="note days">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
         </div>
         <div class="filters stock-filters">
           <div class="f"><label for="s-q">품목 검색</label><input type="search" id="s-q" placeholder="품목명 입력" autocomplete="off"></div>
-          <div class="f"><label for="s-status">상태</label><select id="s-status"><option value="">전체</option><option>여유</option><option>곧 소진</option><option>품절</option></select></div>
+          <div class="f"><label for="s-status">상태</label><select id="s-status"><option value="">전체</option><option>여유</option><option>품절 예정</option><option>품절</option></select></div>
         </div>
         <div class="frame">
           <table class="stock">
@@ -372,14 +372,14 @@
       $('t-low-sub').innerHTML = '재고 <span id="t-low-n"></span>박스 미만 품목';
       $('t-low-n').textContent = D.low;
     }
-    const low = D.stock.filter((s) => s['상태'] === '곧 소진').map((s) => s['품목']);
+    const low = D.stock.filter((s) => s['상태'] === '품절 예정' || s['상태'] === '곧 소진').map((s) => s['품목']);
     if (loose) $('t-low-sub').textContent = `재고 ${D.low}${units[0]} 미만 품목`;
     else if (conv.length < D.stock.length) $('t-low-sub').innerHTML = `재고 ${D.low}박스 미만 품목 <span style="white-space:nowrap">(낱개 품목은 ${D.low}개 미만)</span>`;
     const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
     $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
     $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);
 
-    const chip = { '여유': 'ok', '곧 소진': 'warn', '품절': 'bad' };
+    const chip = { '여유': 'ok', '품절 예정': 'warn', '곧 소진': 'warn', '품절': 'bad' };
     $('stock-body').replaceChildren(...D.stock.map((s) => {
       const tr = el('tr');
       const q = el('td', 'c'); q.append(...qtyNodes(s));

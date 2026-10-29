@@ -6,7 +6,7 @@ import openpyxl
 from zoneinfo import ZoneInfo
 
 LOW = 5   # 품절 예정 기준(박스 미만)
-TH = 2    # 상태 '곧 소진' 기준(주)
+TH = 2    # 상태 '품절 예정' 기준(주)
 
 def load(path):
     wb = openpyxl.load_workbook(path, data_only=True)
@@ -29,15 +29,15 @@ def load(path):
 
 def compute(items, inb, out):
     asof = max([d for d, *_ in inb] + [d for d, *_ in out])
-    from4 = asof - dt.timedelta(days=27)
+    from4 = asof - dt.timedelta(days=13)
     rows = []
     for it in items:
         if not it['active']: continue
         n, per = it['name'], it['per']
         packs = sum(q for d, k, q in inb if k == n) - sum(q for d, k, q, _ in out if k == n)
-        wk = sum(q for d, k, q, kind in out if k == n and kind == '출고' and from4 <= d <= asof) / 4
+        wk = sum(q for d, k, q, kind in out if k == n and kind == '출고' and from4 <= d <= asof) / 2
         weeks = packs / wk if wk > 0 else None
-        status = '품절' if packs <= 0 else ('곧 소진' if packs // per < LOW else '여유')   # 5박스 미만
+        status = '품절' if packs <= 0 else ('품절 예정' if packs // per < LOW else '여유')   # 5박스 미만
         rows.append(dict(name=n, spec=f"{it['kg']:g}kg × {per}팩", boxes=int(packs // per) if packs >= 0 else None,
                          weeks=weeks, status=status))
     return asof, rows
@@ -48,7 +48,7 @@ def render(asof, rows, checked):
     low = [r['name'] for r in rows if r['status'] != '품절' and r['boxes'] is not None and r['boxes'] < LOW]
     sold = [r['name'] for r in rows if r['status'] == '품절']
     def names(lst): return '<br>'.join(e(x) for x in lst) if lst else '없음'
-    chip = {'품절': 'bad', '곧 소진': 'warn', '여유': 'ok', '최근 출고 없음': 'idle'}
+    chip = {'품절': 'bad', '품절 예정': 'warn', '여유': 'ok', '최근 출고 없음': 'idle'}
     def weeks_txt(w): return '-' if w is None else ('1주 미만' if w < 1 else f'약 {int(w)}주')
     trs = '\n'.join(
         f'''        <tr><td><div class="name">{e(r['name'])}</div><div class="spec">{e(r['spec'])}</div></td>
@@ -140,7 +140,7 @@ def render(asof, rows, checked):
   </section>
   <section class="card">
     <h2>품목별 현재고</h2>
-    <p class="note days">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
+    <p class="note days">예상 소진은 최근 2주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
     <div class="scroll">
       <table>
         <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>

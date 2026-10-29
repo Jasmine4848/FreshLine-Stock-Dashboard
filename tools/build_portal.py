@@ -159,7 +159,7 @@ def build(cfg, base_dir):
     rows.sort(key=lambda x: (x['일자'], {'입고': 0, '조정': 1, '출고': 2}[x['구분']]))
     asof = max(r['일자'] for r in rows) if rows else start
     end = dt.date.fromisoformat(asof)
-    from4 = (end - dt.timedelta(days=27)).isoformat()
+    from4 = (end - dt.timedelta(days=13)).isoformat()
     waste = ('폐기', '파손')
     stock = []
     hide = set(cfg.get('hide_items') or [])   # 운영 중단 품목: 재고표에서만 빼고 입출고 내역은 그대로 둔다
@@ -169,11 +169,11 @@ def build(cfg, base_dir):
         mine = [r for r in rows if r['품목'] == n and r['일자'] >= start]
         q = it['기초'] + sum(r['수량'] for r in mine if r['구분'] == '입고') - sum(r['수량'] for r in mine if r['구분'] == '출고') + sum(r['수량'] for r in mine if r['구분'] == '조정')
         q = round(q, 2)
-        wk = sum(r['수량'] for r in mine if r['구분'] == '출고' and from4 <= r['일자'] <= asof and not any(w in r['비고'] for w in waste)) / 4
+        wk = sum(r['수량'] for r in mine if r['구분'] == '출고' and from4 <= r['일자'] <= asof and not any(w in r['비고'] for w in waste)) / 2
         weeks = q / wk if wk > 0 else None
         boxes = q if it['단위'] == '박스' else (q // it['입수'] if it['입수'] else None)
         measure = boxes if boxes is not None else q      # 박스로 못 바꾸는 품목은 낱개 수량 그대로
-        status = '품절' if q <= 0 else ('곧 소진' if measure < LOW_BOX else '여유')   # 5박스(낱개 품목은 5개) 미만
+        status = '품절' if q <= 0 else ('품절 예정' if measure < LOW_BOX else '여유')   # 5박스(낱개 품목은 5개) 미만
         stock.append({'품목': n, '브랜드': it.get('브랜드', ''), '수량': q, '단위': it['단위'], '입수': it['입수'], '소진주': weeks, '상태': status})
     return asof, stock, rows
 

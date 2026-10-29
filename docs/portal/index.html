@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>(주)프레시라인 재고 조회</title>
+<style>
+  :root { --bg:#f5f6f4; --panel:#ffffff; --fg:#1d2321; --muted:#68716d; --line:#dfe3e0; --head:#eef1ef;
+          --accent:#1f5d4c; --warn:#b45309; --bad:#c42b1c; --ok:#2f7d4f; --zebra:#f8f9f8; color-scheme: light;
+          --font:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141816; --panel:#1c211f; --fg:#e8ece9; --muted:#9aa39e; --line:#2f3633; --head:#252b28;
+          --accent:#7cc4ad; --warn:#f0a24a; --bad:#ff7a6b; --ok:#6cc58e; --zebra:#202623; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); font-size:15px; line-height:1.5;
+         padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  button, input, select { font: inherit; color: inherit; }
+  .wrap { max-width: 60rem; margin: 0 auto; display:grid; gap: 20px; }
+  .brand { font-weight:700; letter-spacing:0.06em; }
+
+  /* 로그인 */
+  .login { min-height: calc(100vh - 48px); display:grid; place-items:center; }
+  .login-box { width: min(100%, 22rem); background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:28px 24px; display:grid; gap:16px; }
+  .login-box .brand { font-size:1.4rem; text-align:center; }
+  .login-box p { margin:0; color:var(--muted); text-align:center; font-size:13.5px; }
+  .field { display:grid; gap:6px; }
+  .field label { font-size:13px; font-weight:700; color:var(--muted); }
+  .field input { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--bg); }
+  .field input:focus, select:focus, .btn:focus-visible, input[type=date]:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .btn { border:0; border-radius:8px; padding:10px 14px; font-weight:700; cursor:pointer; background:var(--accent); color:var(--panel); }
+  .btn.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); padding:6px 12px; font-weight:400; font-size:13.5px; }
+  .btn[disabled] { opacity:.6; cursor:wait; }
+  .err { color:var(--bad); font-size:13.5px; text-align:center; min-height:1.2em; }
+
+  /* 대시보드 */
+  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; flex-wrap:wrap; }
+  h1 { margin:0; font-size:1.75rem; font-weight:700; }
+  .lede { margin:4px 0 0; color:var(--muted); }
+  .lede b { color:var(--fg); }
+  .checked { margin:2px 0 0; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .tiles { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+  .tile { --tone: var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:10px; overflow:hidden; display:grid; grid-template-rows:auto 1fr; }
+  .tile-head { background:var(--head); border-bottom:1px solid var(--line); padding:8px 16px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
+  .tile-title { margin:0; font-weight:700; color:var(--tone); }
+  .tile-sub { margin:0; font-size:12.5px; color:var(--muted); }
+  .tile-body { padding:14px 16px 16px; display:flex; align-items:center; min-height:5.5rem; }
+  .value { font-size:1.9rem; font-weight:700; font-variant-numeric:tabular-nums; }
+  .value small { font-size:15px; font-weight:400; color:var(--muted); margin-left:4px; }
+  .names { font-weight:700; font-size:1.1rem; line-height:1.7; white-space:pre-line; }
+  .alert:not(.on) .names { font-weight:400; color:var(--muted); font-size:15px; }
+  .alert.warn { --tone: var(--warn); } .alert.bad { --tone: var(--bad); }
+  .alert.on { border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
+  .alert.on .tile-head { background:var(--tone); border-bottom-color:var(--tone); }
+  .alert.on .tile-title { color:var(--panel); }
+  .alert.on .tile-sub { color: color-mix(in srgb, var(--panel) 85%, transparent); }
+  .alert.on .tile-body { background: color-mix(in srgb, var(--tone) 7%, var(--panel)); }
+  .alert.on .names { color:var(--tone); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px; display:grid; gap:10px; min-width:0; }
+  .card h2 { margin:0; font-size:1.1rem; }
+  .note { margin:0; font-size:12.5px; color:var(--muted); }
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th { font-size:12.5px; color:var(--muted); font-weight:700; padding:8px 12px; border-bottom:2px solid var(--line); text-align:center; white-space:nowrap; background:var(--panel); }
+  td { padding:10px 12px; border-bottom:1px solid var(--line); text-align:center; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  tbody tr:nth-child(even) td { background:var(--zebra); }
+  tbody tr:last-child td { border-bottom:0; }
+  .stock { table-layout:fixed; }
+  .stock col.c1 { width:34%; } .stock col.c2, .stock col.c3, .stock col.c4 { width:22%; }
+  .name { font-weight:700; }
+  .qty { font-weight:700; font-size:1.1rem; } td small { font-size:12.5px; color:var(--muted); margin-left:3px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; padding:2px 9px; border-radius:999px; background: color-mix(in srgb, currentColor 11%, transparent); }
+  .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+  .chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); }
+
+  .filters { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:flex-end; }
+  .filters .f { display:grid; gap:4px; }
+  .filters label { font-size:12px; color:var(--muted); font-weight:700; }
+  .filters input, .filters select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); min-width:0; }
+  .filters .spacer { flex:1; }
+  .sumline { font-size:13.5px; color:var(--muted); }
+  .sumline b { color:var(--fg); }
+  .ledger-box { max-height: 26rem; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+  .ledger th { position:sticky; top:0; z-index:1; }
+  .ledger td.in { color:var(--accent); font-weight:700; }
+  .ledger td.memo { white-space:normal; text-align:left; color:var(--muted); font-size:13px; min-width:8rem; }
+  .empty { padding:24px; text-align:center; color:var(--muted); }
+  footer { display:flex; justify-content:center; padding-top:16px; margin-top:4px; border-top:1px solid var(--line); }
+  footer .brand { font-size:1.5rem; }
+
+  @media (max-width: 600px) {
+    .stock { table-layout:auto; } .stock col { width:auto !important; }
+    .days { display:none; }
+    th, td { padding:10px 6px; }
+    .card { padding:16px 12px; }
+    .filters .f { flex: 1 1 8rem; }
+    .filters .spacer { display:none; }
+    .filters .btn { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 로그인 화면 -->
+<section class="login" id="login-view">
+  <form class="login-box" id="login-form" autocomplete="off">
+    <div class="brand">(주)프레시라인</div>
+    <p>고객사 재고 조회</p>
+    <div class="field"><label for="cid">아이디</label><input id="cid" name="cid" autocomplete="username" required></div>
+    <div class="field"><label for="pw">비밀번호</label><input id="pw" name="pw" type="password" autocomplete="current-password" required></div>
+    <button class="btn" id="login-btn" type="submit">조회하기</button>
+    <div class="err" id="login-err" role="alert"></div>
+  </form>
+</section>
+
+<!-- 대시보드 -->
+<div class="wrap" id="dash-view" hidden>
+  <header class="top">
+    <div>
+      <h1 id="d-title">재고 현황</h1>
+      <p class="lede"><b id="d-asof"></b> 기준 · 관리 품목 <b id="d-count"></b>종</p>
+      <p class="checked">마지막 확인: <span id="d-checked"></span></p>
+    </div>
+    <button class="btn ghost" id="logout" type="button">로그아웃</button>
+  </header>
+
+  <section class="tiles">
+    <div class="tile"><div class="tile-head"><p class="tile-title">총 재고</p><p class="tile-sub">전체 품목 합계</p></div>
+      <div class="tile-body"><span class="value"><span id="t-total"></span><small id="t-unit"></small></span></div></div>
+    <div class="tile alert warn" id="t-low-tile"><div class="tile-head"><p class="tile-title">품절 예정</p><p class="tile-sub">재고 <span id="t-low-n"></span>박스 미만</p></div>
+      <div class="tile-body"><div class="names" id="t-low"></div></div></div>
+    <div class="tile alert bad" id="t-out-tile"><div class="tile-head"><p class="tile-title">품절</p><p class="tile-sub">재고 없음</p></div>
+      <div class="tile-body"><div class="names" id="t-out"></div></div></div>
+  </section>
+
+  <section class="card">
+    <h2>품목별 현재고</h2>
+    <p class="note days">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
+    <table class="stock">
+      <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+      <thead><tr><th>품목</th><th>총 보유 수량</th><th class="days">예상 소진</th><th>상태</th></tr></thead>
+      <tbody id="stock-body"></tbody>
+    </table>
+  </section>
+
+  <section class="card">
+    <h2>입출고 상세 내역</h2>
+    <div class="filters">
+      <div class="f"><label for="f-from">시작일</label><input type="date" id="f-from"></div>
+      <div class="f"><label for="f-to">종료일</label><input type="date" id="f-to"></div>
+      <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option></select></div>
+      <div class="f"><label for="f-item">품목</label><select id="f-item"><option value="">전체</option></select></div>
+      <div class="spacer"></div>
+      <button class="btn" id="dl" type="button">엑셀 다운로드</button>
+    </div>
+    <div class="sumline" id="sumline"></div>
+    <div class="ledger-box">
+      <table class="ledger">
+        <thead><tr><th>일자</th><th>구분</th><th>점포명</th><th>품목</th><th>수량</th><th>비고</th></tr></thead>
+        <tbody id="ledger-body"></tbody>
+      </table>
+      <div class="empty" id="ledger-empty" hidden>선택한 기간에 입출고 내역이 없습니다.</div>
+    </div>
+  </section>
+
+  <footer><span class="brand">(주)프레시라인</span></footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  const hex = (buf) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, '0')).join('');
+  const fmt = (v) => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
+  let D = null;
+
+  async function idHash(cid) {
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('freshline-portal:' + cid.trim()));
+    return hex(h).slice(0, 24);
+  }
+  async function decrypt(blob, pw) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(blob.salt), iterations: blob.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(blob.iv) }, key, b64(blob.ct));
+    return JSON.parse(new TextDecoder().decode(pt));
+  }
+
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('login-btn'); const err = $('login-err');
+    err.textContent = ''; btn.disabled = true; btn.textContent = '확인 중…';
+    try {
+      const res = await fetch(`data/${await idHash($('cid').value)}.json`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('no');
+      D = await decrypt(await res.json(), $('pw').value);
+      $('pw').value = '';
+      show();
+    } catch (_) {
+      err.textContent = '아이디 또는 비밀번호가 맞지 않습니다.';
+    } finally { btn.disabled = false; btn.textContent = '조회하기'; }
+  });
+
+  $('logout').addEventListener('click', () => {
+    D = null; $('stock-body').replaceChildren(); $('ledger-body').replaceChildren();
+    $('dash-view').hidden = true; $('login-view').hidden = false; $('cid').value = ''; $('pw').value = '';
+  });
+
+  const el = (tag, cls, text) => { const x = document.createElement(tag); if (cls) x.className = cls; if (text != null) x.textContent = text; return x; };
+
+  function show() {
+    const wd = '일월화수목금토'[new Date(D.asof + 'T00:00:00').getDay()];
+    document.title = `${D.name} 재고 현황`;
+    $('d-title').textContent = `${D.name} 재고 현황`;
+    $('d-asof').textContent = `${D.asof} (${wd})`;
+    $('d-count').textContent = D.stock.length;
+    $('d-checked').textContent = D.checked;
+    const total = D.stock.reduce((a, s) => a + Math.max(0, s['박스']), 0);
+    $('t-total').textContent = fmt(total); $('t-unit').textContent = D.unit;
+    $('t-low-n').textContent = D.low;
+    const low = D.stock.filter((s) => s['상태'] !== '품절' && s['박스'] < D.low).map((s) => s['품목']);
+    const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
+    $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
+    $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);
+
+    const chip = { '여유': 'ok', '곧 소진': 'warn', '품절': 'bad' };
+    $('stock-body').replaceChildren(...D.stock.map((s) => {
+      const tr = el('tr');
+      const q = el('td'); q.append(el('span', 'qty', fmt(s['박스'])), el('small', '', D.unit));
+      const w = s['소진주'] == null ? '-' : (s['소진주'] < 1 ? '1주 미만' : `약 ${Math.floor(s['소진주'])}주`);
+      const st = el('td'); st.append(el('span', `chip ${chip[s['상태']]}`, s['상태']));
+      tr.append(el('td', 'name', s['품목']), q, el('td', 'days', w), st);
+      return tr;
+    }));
+
+    const items = [...new Set(D.rows.map((r) => r['품목']))];
+    $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
+    $('f-from').value = D.asof.slice(0, 8) + '01'; $('f-to').value = D.asof;
+    $('f-kind').value = '';
+    renderLedger();
+    $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
+  }
+
+  function filtered() {
+    const f = $('f-from').value, t = $('f-to').value, k = $('f-kind').value, i = $('f-item').value;
+    return D.rows.filter((r) => (!f || r['일자'] >= f) && (!t || r['일자'] <= t) && (!k || r['구분'] === k) && (!i || r['품목'] === i));
+  }
+
+  function renderLedger() {
+    if (!D) return;
+    const rows = filtered().slice().reverse();
+    $('ledger-body').replaceChildren(...rows.map((r) => {
+      const tr = el('tr');
+      tr.append(el('td', '', r['일자']), el('td', r['구분'] === '입고' ? 'in' : '', r['구분']), el('td', '', r['점포'] || '-'),
+                el('td', '', r['품목']), el('td', '', fmt(r['수량'])), el('td', 'memo', r['비고'] || ''));
+      return tr;
+    }));
+    $('ledger-empty').hidden = rows.length > 0;
+    const sin = rows.filter((r) => r['구분'] === '입고').reduce((a, r) => a + r['수량'], 0);
+    const sout = rows.filter((r) => r['구분'] === '출고').reduce((a, r) => a + r['수량'], 0);
+    $('sumline').replaceChildren('조회 ', el('b', '', `${rows.length}건`), ` · 입고 `, el('b', '', `${fmt(sin)}${D.unit}`), ` · 출고 `, el('b', '', `${fmt(sout)}${D.unit}`));
+  }
+  ['f-from', 'f-to', 'f-kind', 'f-item'].forEach((id) => $(id).addEventListener('change', renderLedger));
+
+  $('dl').addEventListener('click', () => {
+    if (!D) return;
+    if (typeof XLSX === 'undefined') { alert('엑셀 기능을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
+    const rows = filtered().map((r) => ({ '일자': r['일자'], '구분': r['구분'], '점포명': r['점포'], '품목': r['품목'], [`수량(${D.unit})`]: r['수량'], '비고': r['비고'] }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['일자', '구분', '점포명', '품목', `수량(${D.unit})`, '비고'] });
+    ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 18 }, { wch: 16 }, { wch: 10 }, { wch: 30 }];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '입출고내역');
+    XLSX.writeFile(wb, `${D.name}_입출고내역_${$('f-from').value || '처음'}_${$('f-to').value || D.asof}.xlsx`);
+  });
+})();
+</script>
+</body>
+</html>

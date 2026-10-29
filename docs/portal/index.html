@@ -9,12 +9,12 @@
   /* 방향: 물류 운영 화면. 짙은 남색 상단바 + 흰 작업면, 각진 모서리, 촘촘한 표. 강조색은 코발트 하나, 경고는 앰버·레드. */
   :root { --bar:#13233f; --bar-fg:#ffffff; --bar-muted:#a9b6cc;
           --bg:#eef1f5; --panel:#ffffff; --fg:#17202e; --muted:#5d6878; --faint:#8b95a5; --line:#dbe0e8; --line-strong:#c4ccd8; --head:#f5f7fa;
-          --accent:#2456c9; --accent-soft:#e8eefc; --warn:#b85c00; --warn-soft:#fff3e2; --bad:#c62828; --bad-soft:#fdecec; --ok:#1d7a5a; --ok-soft:#e5f4ee; --in:#1f5fd1; --in-soft:#e6efff; --out:#8a3fc2; --out-soft:#f3e9fb;
+          --accent:#2456c9; --accent-soft:#e8eefc; --warn:#8a5a00; --warn-soft:#ffeaa0; --warn-tile:#fff6cc; --warn-line:#f0c43c; --bad:#c62828; --bad-soft:#fdecec; --ok:#1d7a5a; --ok-soft:#e5f4ee; --in:#b4235a; --in-soft:#ffe0ec; --out:#0b6c9e; --out-soft:#d9f0fd;
           --hover:#f3f6fb; --radius:6px; color-scheme: light;
           --font:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
   @media (prefers-color-scheme: dark) { :root { --bar:#0b1526; --bar-fg:#eef2f8; --bar-muted:#8e9bb2;
           --bg:#0f1622; --panel:#172131; --fg:#e7ecf3; --muted:#a3adbd; --faint:#7d889a; --line:#28344a; --line-strong:#35425a; --head:#1c283b;
-          --accent:#7ea4ff; --accent-soft:#1d2c4d; --warn:#f2a64b; --warn-soft:#3a2a14; --bad:#ff7d73; --bad-soft:#3d1d1d; --ok:#5ccf9f; --ok-soft:#163328; --in:#86aeff; --in-soft:#1b2b4c; --out:#d0a2f5; --out-soft:#33204a;
+          --accent:#7ea4ff; --accent-soft:#1d2c4d; --warn:#ffd36b; --warn-soft:#4a3a10; --warn-tile:#2f2810; --warn-line:#8a6d1c; --bad:#ff7d73; --bad-soft:#3d1d1d; --ok:#5ccf9f; --ok-soft:#163328; --in:#ff9cc1; --in-soft:#4a1d30; --out:#8fd3ff; --out-soft:#123a52;
           --hover:#1d293d; color-scheme: dark; } }
   * { box-sizing: border-box; }
   [hidden] { display:none !important; }
@@ -72,12 +72,14 @@
   .tile-sub { margin:0; font-size:12px; color:var(--faint); }
   .value { font-size:2.1rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
   .value small { font-size:14px; font-weight:400; color:var(--muted); margin-left:4px; }
-  .names { font-weight:700; font-size:1.05rem; line-height:1.65; white-space:pre-line; }
+  .names { font-weight:600; font-size:1.02rem; line-height:1.65; white-space:pre-line; }
   .tag { display:none; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:4px; }
   .alert:not(.on) .names { font-weight:400; color:var(--faint); font-size:14px; }
   .alert.warn { --tone:var(--warn); --soft:var(--warn-soft); }
   .alert.bad { --tone:var(--bad); --soft:var(--bad-soft); }
   .alert.on { background:var(--soft); border-color:color-mix(in srgb, var(--tone) 35%, transparent); }
+  .alert.warn.on { background:var(--warn-tile); border-color:var(--warn-line); box-shadow: inset 4px 0 0 var(--warn-line); }
+  .alert.warn.on .tag { background:var(--warn-line); color:#3d2a00; }
   .alert.on .tile-title, .alert.on .names { color:var(--tone); }
   .alert.on .tag { display:inline-block; background:var(--tone); color:var(--panel); }
 
@@ -98,8 +100,8 @@
   .name { font-weight:700; }
   .brandline { font-size:12px; color:var(--faint); }
   .qty { font-weight:700; font-size:1.1rem; } td small { font-size:12px; color:var(--muted); margin-left:3px; }
-  .chip { display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px; }
-  .chip.ok { color:var(--ok); background:var(--ok-soft); } .chip.warn { color:var(--warn); background:var(--warn-soft); } .chip.bad { color:var(--bad); background:var(--bad-soft); }
+  .chip { display:inline-block; font-size:12px; font-weight:600; padding:3px 10px; border-radius:4px; }
+  .chip.ok { color:var(--ok); background:var(--ok-soft); } .chip.warn { color:var(--warn); background:var(--warn-soft); box-shadow: inset 0 0 0 1px var(--warn-line); } .chip.bad { color:var(--bad); background:var(--bad-soft); }
 
   /* 상세 내역 */
   .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between; }
@@ -140,7 +142,7 @@
   .ledger td { overflow:hidden; text-overflow:ellipsis; }
   .ledger.no-memo .opt, .ledger.no-store .st { display:none; }
   .ledger.no-store .w-item { width:26%; } .ledger.no-store.no-memo .w-item { width:34%; } .ledger.no-store.no-memo .w-date { width:26%; } .ledger.no-store.no-memo .w-kind { width:18%; } .ledger.no-store.no-memo .w-qty { width:22%; }
-  .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:4px; background:var(--head); color:var(--muted); border:1px solid var(--line); }
+  .kind { display:inline-block; font-size:12px; font-weight:600; padding:2px 9px; border-radius:4px; background:var(--head); color:var(--muted); border:1px solid var(--line); }
   .kind.in { background:var(--in-soft); color:var(--in); border-color:transparent; }
   .kind.out { background:var(--out-soft); color:var(--out); border-color:transparent; }
   .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; }

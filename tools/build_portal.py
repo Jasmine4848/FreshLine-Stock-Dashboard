@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives import hashes
 
 ITER = 310000
 LOW_BOX = 5      # 품절 예정: 박스 환산 5박스 미만 (박스로 못 바꾸는 품목은 기본 단위 5 미만)
-TH_WEEKS = 2     # 곧 소진: 최근 4주 평균 출고로 2주 안에 소진 예상
+TH_WEEKS = 2     # (사용 안 함) 예전 출고 속도 기준
 UNIT = {'BOX': '박스', 'PK': '팩', 'EA': '개'}
 
 
@@ -172,9 +172,8 @@ def build(cfg, base_dir):
         wk = sum(r['수량'] for r in mine if r['구분'] == '출고' and from4 <= r['일자'] <= asof and not any(w in r['비고'] for w in waste)) / 4
         weeks = q / wk if wk > 0 else None
         boxes = q if it['단위'] == '박스' else (q // it['입수'] if it['입수'] else None)
-        # 설정에 low_soon 이 있으면 5박스 미만(박스로 못 바꾸는 품목은 5개 미만)도 '곧 소진'
-        low_soon = cfg.get('low_soon') and (boxes if boxes is not None else q) < LOW_BOX
-        status = '품절' if q <= 0 else ('곧 소진' if low_soon or (weeks is not None and weeks < TH_WEEKS) else '여유')
+        measure = boxes if boxes is not None else q      # 박스로 못 바꾸는 품목은 낱개 수량 그대로
+        status = '품절' if q <= 0 else ('곧 소진' if measure < LOW_BOX else '여유')   # 5박스(낱개 품목은 5개) 미만
         stock.append({'품목': n, '브랜드': it.get('브랜드', ''), '수량': q, '단위': it['단위'], '입수': it['입수'], '소진주': weeks, '상태': status})
     return asof, stock, rows
 
@@ -199,7 +198,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows = build(cfg, base_dir)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'low_any': bool(cfg.get('low_soon')), 'stock': stock, 'rows': rows}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows}
         json.dump(encrypt(payload, pws[cfg['id']]), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock]))
     for r in results: print(r)

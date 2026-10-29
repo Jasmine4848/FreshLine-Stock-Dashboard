@@ -165,7 +165,9 @@ def build(cfg, base_dir):
         q = round(q, 2)
         wk = sum(r['수량'] for r in mine if r['구분'] == '출고' and from4 <= r['일자'] <= asof and not any(w in r['비고'] for w in waste)) / 4
         weeks = q / wk if wk > 0 else None
-        status = '품절' if q <= 0 else ('곧 소진' if weeks is not None and weeks < TH_WEEKS else '여유')
+        boxes = q if it['단위'] == '박스' else (q // it['입수'] if it['입수'] else None)
+        low_soon = cfg.get('low_soon') and boxes is not None and boxes < LOW_BOX   # 설정에 low_soon 이 있으면 5박스 미만도 '곧 소진'
+        status = '품절' if q <= 0 else ('곧 소진' if low_soon or (weeks is not None and weeks < TH_WEEKS) else '여유')
         stock.append({'품목': n, '브랜드': it.get('브랜드', ''), '수량': q, '단위': it['단위'], '입수': it['입수'], '소진주': weeks, '상태': status})
     return asof, stock, rows
 

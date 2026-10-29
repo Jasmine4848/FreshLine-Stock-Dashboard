@@ -6,141 +6,167 @@
 <meta name="robots" content="noindex, nofollow">
 <title>(주)프레시라인 재고 조회</title>
 <style>
-  /* 레이아웃: 한 열, 요약 → 품목별 재고 → 상세 내역 순. 색은 짙은 초록 하나만 강조색으로 쓴다. */
-  :root { --bg:#f3f5f3; --panel:#ffffff; --fg:#1b2320; --muted:#66706b; --faint:#8a938e; --line:#e1e5e2; --head:#f0f3f1;
-          --accent:#1f5d4c; --accent-soft:#e6f0ec; --warn:#b45309; --bad:#c42b1c; --ok:#2f7d4f; --zebra:#fafbfa; --hover:#f1f5f3;
-          --shadow: 0 1px 2px rgba(20,30,25,.04), 0 2px 8px rgba(20,30,25,.04); color-scheme: light;
+  /* 방향: 물류 운영 화면. 짙은 남색 상단바 + 흰 작업면, 각진 모서리, 촘촘한 표. 강조색은 코발트 하나, 경고는 앰버·레드. */
+  :root { --bar:#13233f; --bar-fg:#ffffff; --bar-muted:#a9b6cc;
+          --bg:#eef1f5; --panel:#ffffff; --fg:#17202e; --muted:#5d6878; --faint:#8b95a5; --line:#dbe0e8; --line-strong:#c4ccd8; --head:#f5f7fa;
+          --accent:#2456c9; --accent-soft:#e8eefc; --warn:#b85c00; --warn-soft:#fff3e2; --bad:#c62828; --bad-soft:#fdecec; --ok:#1d7a5a; --ok-soft:#e5f4ee;
+          --hover:#f3f6fb; --radius:6px; color-scheme: light;
           --font:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#121614; --panel:#1b201e; --fg:#e8ece9; --muted:#a0a9a4; --faint:#7b847f; --line:#2c3330; --head:#222826;
-          --accent:#7cc4ad; --accent-soft:#1f3a32; --warn:#f0a24a; --bad:#ff7a6b; --ok:#6cc58e; --zebra:#1e2421; --hover:#232a27;
-          --shadow: none; color-scheme: dark; } }
+  @media (prefers-color-scheme: dark) { :root { --bar:#0b1526; --bar-fg:#eef2f8; --bar-muted:#8e9bb2;
+          --bg:#0f1622; --panel:#172131; --fg:#e7ecf3; --muted:#a3adbd; --faint:#7d889a; --line:#28344a; --line-strong:#35425a; --head:#1c283b;
+          --accent:#7ea4ff; --accent-soft:#1d2c4d; --warn:#f2a64b; --warn-soft:#3a2a14; --bad:#ff7d73; --bad-soft:#3d1d1d; --ok:#5ccf9f; --ok-soft:#163328;
+          --hover:#1d293d; color-scheme: dark; } }
   * { box-sizing: border-box; }
   [hidden] { display:none !important; }
-  body { word-break:keep-all; margin:0; background:var(--bg); color:var(--fg); font-family:var(--font); font-size:15px; line-height:1.5;
-         padding: max(28px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(28px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  html, body { margin:0; }
+  body { background:var(--bg); color:var(--fg); font-family:var(--font); font-size:14.5px; line-height:1.5; word-break:keep-all; }
   button, input, select { font: inherit; color: inherit; }
-  .wrap { max-width: 60rem; margin: 0 auto; display:grid; gap: 18px; }
-  .brand { font-weight:700; letter-spacing:0.06em; }
   :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .gutter { padding-left:max(20px, env(safe-area-inset-left)); padding-right:max(20px, env(safe-area-inset-right)); }
+  .inner { max-width: 64rem; margin: 0 auto; }
 
-  /* 로그인 */
-  .login { min-height: calc(100vh - 56px); display:grid; place-items:center; }
-  .login-box { width: min(100%, 23rem); background:var(--panel); border:1px solid var(--line); border-radius:14px; box-shadow:var(--shadow); padding:32px 26px 26px; display:grid; gap:18px; }
-  .login-head { display:grid; gap:4px; text-align:center; }
-  .login-head .brand { font-size:1.45rem; }
-  .login-head p { margin:0; color:var(--muted); font-size:13.5px; }
-  .field { display:grid; gap:6px; }
-  .field label { font-size:13px; font-weight:700; color:var(--muted); }
-  .field input { width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:9px; background:var(--bg); }
-  .field input:focus { outline:2px solid var(--accent); outline-offset:0; border-color:transparent; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:0; border-radius:9px; padding:10px 16px; font-weight:700; cursor:pointer; background:var(--accent); color:var(--panel); }
-  .btn:hover { filter: brightness(1.08); }
-  .btn.ghost { background:var(--panel); color:var(--muted); border:1px solid var(--line); padding:7px 13px; font-weight:400; font-size:13.5px; }
-  .btn.ghost:hover { color:var(--fg); filter:none; background:var(--hover); }
+  /* 버튼 */
+  .btn { display:inline-flex; align-items:center; justify-content:center; gap:7px; border:0; border-radius:var(--radius); padding:9px 16px; font-weight:700; cursor:pointer; background:var(--accent); color:#fff; }
+  .btn:hover { filter: brightness(1.07); }
   .btn[disabled] { opacity:.6; cursor:wait; }
   .btn svg { width:16px; height:16px; flex:none; }
-  .err { color:var(--bad); font-size:13.5px; text-align:center; min-height:1.2em; margin-top:-6px; }
-  .login-foot { text-align:center; font-size:12px; color:var(--faint); }
 
-  /* 상단 */
-  .top { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
-  .eyebrow { margin:0 0 2px; font-size:12.5px; font-weight:700; color:var(--accent); letter-spacing:.04em; }
-  h1 { margin:0; font-size:1.7rem; font-weight:700; line-height:1.3; text-wrap:balance; }
-  .meta { margin:6px 0 0; display:flex; flex-wrap:wrap; gap:6px 14px; color:var(--muted); font-size:13.5px; font-variant-numeric:tabular-nums; }
-  .meta b { color:var(--fg); }
+  /* 로그인 */
+  .login { min-height:100vh; display:grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .login-side { background:var(--bar); color:var(--bar-fg); padding:48px max(40px, env(safe-area-inset-left)); display:flex; flex-direction:column; justify-content:space-between; gap:32px; }
+  .login-side .brand { font-size:1.35rem; font-weight:700; letter-spacing:.04em; }
+  .login-side h2 { margin:0; font-size:2rem; line-height:1.35; font-weight:700; }
+  .login-side p { margin:10px 0 0; color:var(--bar-muted); max-width:24rem; }
+  .login-side small { color:var(--bar-muted); }
+  .login-main { display:grid; place-items:center; padding:40px 24px; background:var(--panel); }
+  .login-form { width:min(100%, 21rem); display:grid; gap:16px; }
+  .login-form h3 { margin:0 0 4px; font-size:1.25rem; }
+  .field { display:grid; gap:6px; }
+  .field label { font-size:12.5px; font-weight:700; color:var(--muted); }
+  .field input { width:100%; padding:11px 12px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); }
+  .field input:focus { outline:2px solid var(--accent); outline-offset:-1px; border-color:transparent; }
+  .err { color:var(--bad); font-size:13px; min-height:1.2em; margin-top:-4px; }
+  .login-foot { font-size:12.5px; color:var(--faint); border-top:1px solid var(--line); padding-top:14px; }
 
-  /* 요약 칸 */
+  /* 상단바 */
+  .appbar { background:var(--bar); color:var(--bar-fg); padding-top:env(safe-area-inset-top); }
+  .appbar .inner { display:flex; align-items:center; justify-content:space-between; gap:12px; height:56px; }
+  .appbar .brand { font-weight:700; letter-spacing:.04em; }
+  .appbar .brand span { color:var(--bar-muted); font-weight:400; margin-left:10px; letter-spacing:0; font-size:13.5px; }
+  .logout { background:transparent; color:var(--bar-fg); border:1px solid rgba(255,255,255,.28); border-radius:var(--radius); padding:6px 12px; font-size:13px; cursor:pointer; }
+  .logout:hover { background:rgba(255,255,255,.08); }
+
+  /* 본문 */
+  main { padding-top:28px; padding-bottom:max(36px, env(safe-area-inset-bottom)); }
+  main .inner { display:grid; gap:16px; }
+  .pagehead { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:8px 20px; padding-bottom:4px; }
+  h1 { margin:0; font-size:1.75rem; line-height:1.25; font-weight:700; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 16px; color:var(--muted); font-size:13px; font-variant-numeric:tabular-nums; }
+  .meta b { color:var(--fg); font-weight:700; }
+
+  /* 요약 */
   .tiles { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
-  .tile { --tone: var(--fg); background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; display:grid; grid-template-rows:auto 1fr; }
-  .tile-head { background:var(--head); border-bottom:1px solid var(--line); padding:9px 16px; display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; }
-  .tile-title { margin:0; font-weight:700; color:var(--tone); }
-  .tile-sub { margin:0; font-size:12.5px; color:var(--muted); }
-  .tile-body { padding:14px 16px 16px; display:flex; align-items:center; min-height:5.5rem; }
-  .value { font-size:2rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
-  .value small { font-size:15px; font-weight:400; color:var(--muted); margin-left:4px; }
-  .names { font-weight:700; font-size:1.1rem; line-height:1.7; white-space:pre-line; }
-  .alert:not(.on) .names { font-weight:400; color:var(--muted); font-size:15px; }
-  .alert.warn { --tone: var(--warn); } .alert.bad { --tone: var(--bad); }
-  .alert.on { border-color: color-mix(in srgb, var(--tone) 45%, transparent); }
-  .alert.on .tile-head { background:var(--tone); border-bottom-color:var(--tone); }
-  .alert.on .tile-title { color:var(--panel); }
-  .alert.on .tile-sub { color: color-mix(in srgb, var(--panel) 85%, transparent); }
-  .alert.on .tile-body { background: color-mix(in srgb, var(--tone) 7%, var(--panel)); }
-  .alert.on .names { color:var(--tone); }
+  .tile { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; display:grid; gap:8px; align-content:start; min-height:7.5rem; }
+  .tile-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .tile-title { margin:0; font-size:13px; font-weight:700; color:var(--muted); }
+  .tile-sub { margin:0; font-size:12px; color:var(--faint); }
+  .value { font-size:2.1rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .value small { font-size:14px; font-weight:400; color:var(--muted); margin-left:4px; }
+  .names { font-weight:700; font-size:1.05rem; line-height:1.65; white-space:pre-line; }
+  .tag { display:none; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:4px; }
+  .alert:not(.on) .names { font-weight:400; color:var(--faint); font-size:14px; }
+  .alert.warn { --tone:var(--warn); --soft:var(--warn-soft); }
+  .alert.bad { --tone:var(--bad); --soft:var(--bad-soft); }
+  .alert.on { background:var(--soft); border-color:color-mix(in srgb, var(--tone) 35%, transparent); }
+  .alert.on .tile-title, .alert.on .names { color:var(--tone); }
+  .alert.on .tag { display:inline-block; background:var(--tone); color:var(--panel); }
 
-  /* 카드 공통 */
-  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); padding:20px; display:grid; gap:14px; min-width:0; }
-  .card-head { display:grid; gap:2px; }
-  .card h2 { margin:0; font-size:1.1rem; }
-  .note { margin:0; font-size:12.5px; color:var(--muted); }
+  /* 카드·표 */
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px 20px 20px; display:grid; gap:14px; min-width:0; }
+  .card-head { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:4px 12px; }
+  .card h2 { margin:0; font-size:1.05rem; }
+  .note { margin:0; font-size:12.5px; color:var(--faint); }
   table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
-  th { font-size:12.5px; color:var(--muted); font-weight:700; padding:9px 12px; border-bottom:1px solid var(--line); background:var(--head); white-space:nowrap; }
-  td { padding:11px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { font-size:12px; color:var(--muted); font-weight:700; padding:9px 14px; background:var(--head); border-bottom:1px solid var(--line-strong); white-space:nowrap; }
+  td { padding:11px 14px; border-bottom:1px solid var(--line); white-space:nowrap; }
   tbody tr:last-child td { border-bottom:0; }
   tbody tr:hover td { background:var(--hover); }
   .l { text-align:left; } .c { text-align:center; } .r { text-align:right; }
-
-  /* 품목별 현재고 */
-  .stock-box { border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .frame { border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
   .stock { table-layout:fixed; }
   .stock col.c1 { width:34%; } .stock col.c2, .stock col.c3, .stock col.c4 { width:22%; }
   .name { font-weight:700; }
-  .qty { font-weight:700; font-size:1.15rem; } td small { font-size:12.5px; color:var(--muted); margin-left:3px; }
-  .chip { display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; padding:3px 10px; border-radius:999px; background: color-mix(in srgb, currentColor 11%, transparent); }
-  .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
-  .chip.ok { color:var(--ok); } .chip.warn { color:var(--warn); } .chip.bad { color:var(--bad); }
+  .qty { font-weight:700; font-size:1.1rem; } td small { font-size:12px; color:var(--muted); margin-left:3px; }
+  .chip { display:inline-block; font-size:12px; font-weight:700; padding:3px 10px; border-radius:4px; }
+  .chip.ok { color:var(--ok); background:var(--ok-soft); } .chip.warn { color:var(--warn); background:var(--warn-soft); } .chip.bad { color:var(--bad); background:var(--bad-soft); }
 
   /* 상세 내역 */
-  .quick { display:flex; flex-wrap:wrap; gap:6px; }
-  .quick button { border:1px solid var(--line); background:var(--panel); color:var(--muted); border-radius:999px; padding:5px 12px; font-size:13px; cursor:pointer; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; justify-content:space-between; }
+  .quick { display:inline-flex; border:1px solid var(--line-strong); border-radius:var(--radius); overflow:hidden; }
+  .quick button { border:0; border-right:1px solid var(--line-strong); background:var(--panel); color:var(--muted); padding:7px 14px; font-size:13px; cursor:pointer; }
+  .quick button:last-child { border-right:0; }
   .quick button:hover { background:var(--hover); color:var(--fg); }
-  .quick button[aria-pressed=true] { background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 40%, transparent); color:var(--accent); font-weight:700; }
+  .quick button[aria-pressed=true] { background:var(--accent); color:#fff; font-weight:700; }
   .filters { display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end; }
   .filters .f { display:grid; gap:5px; }
   .filters label { font-size:12px; color:var(--muted); font-weight:700; }
-  .filters select { padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--bg); min-width:6.5rem; }
-  .filters .spacer { flex:1; }
-  .datebox { position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line); border-radius:9px; background:var(--bg); min-width:9.5rem; cursor:pointer; font-variant-numeric:tabular-nums; }
+  .filters select { padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:6.5rem; }
+  .datebox { position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:9.5rem; cursor:pointer; font-variant-numeric:tabular-nums; }
   .datebox::after { content:""; width:14px; height:14px; margin-left:auto; opacity:.55; background: currentColor;
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2v12h12V3h-2V1h-1.5v2h-5V1zM3.5 6h9v7.5h-9z'/%3E%3C/svg%3E") center/contain no-repeat;
             mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2v12h12V3h-2V1h-1.5v2h-5V1zM3.5 6h9v7.5h-9z'/%3E%3C/svg%3E") center/contain no-repeat; }
   .datebox input[type=date] { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; }
   .datebox:focus-within { outline:2px solid var(--accent); outline-offset:1px; }
   .tilde { color:var(--faint); padding-bottom:9px; }
-  .sums { display:flex; flex-wrap:wrap; gap:8px; }
-  .sum { display:inline-flex; gap:6px; align-items:baseline; padding:6px 12px; border-radius:9px; background:var(--head); font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums; }
-  .sum b { color:var(--fg); font-size:14.5px; }
+  .sums { display:flex; flex-wrap:wrap; gap:0; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; width:max-content; max-width:100%; }
+  .sum { display:inline-flex; gap:8px; align-items:baseline; padding:8px 16px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; border-right:1px solid var(--line); background:var(--head); }
+  .sum:last-child { border-right:0; }
+  .sum b { color:var(--fg); font-size:15px; }
   .sum.in b { color:var(--accent); }
-  .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:10px; }
-  .ledger th { position:sticky; top:0; z-index:1; }
+  .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
-  .ledger col.k-date { width:17%; } .ledger col.k-kind { width:10%; } .ledger col.k-store { width:19%; }
-  .ledger col.k-item { width:19%; } .ledger col.k-qty { width:12%; } .ledger col.k-memo { width:23%; }
+  .ledger th { position:sticky; top:0; z-index:1; }
+  .ledger th, .ledger td { text-align:center; }
+  .ledger th.w-memo, .ledger td.memo { text-align:left; }
+  .ledger .w-date { width:17%; } .ledger .w-kind { width:11%; } .ledger .w-store { width:18%; } .ledger .w-item { width:18%; } .ledger .w-qty { width:12%; } .ledger .w-memo { width:24%; }
+  .ledger.no-memo .w-date { width:22%; } .ledger.no-memo .w-kind { width:14%; } .ledger.no-memo .w-store { width:22%; } .ledger.no-memo .w-item { width:24%; } .ledger.no-memo .w-qty { width:18%; }
   .ledger td { overflow:hidden; text-overflow:ellipsis; }
-  .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 8px; border-radius:6px; background:var(--head); color:var(--muted); }
-  .kind.in { background:var(--accent-soft); color:var(--accent); }
-  .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; min-width:8rem; }
-  .ledger .wd { color:var(--faint); font-size:12.5px; margin-left:4px; }
+  .ledger.no-memo .opt { display:none; }
+  .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:4px; background:var(--head); color:var(--muted); border:1px solid var(--line); }
+  .kind.in { background:var(--accent-soft); color:var(--accent); border-color:transparent; }
+  .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; }
+  .ledger .wd { color:var(--faint); font-size:12px; margin-left:4px; }
   .empty { padding:28px; text-align:center; color:var(--muted); }
-  footer { display:flex; justify-content:center; padding-top:18px; margin-top:6px; border-top:1px solid var(--line); }
-  footer .brand { font-size:1.5rem; }
+  footer { border-top:1px solid var(--line); margin-top:8px; padding:20px 0 4px; text-align:center; }
+  footer .brand { font-weight:700; font-size:1.35rem; letter-spacing:.06em; color:var(--fg); }
 
+  @media (max-width: 760px) {
+    .login { grid-template-columns: 1fr; }
+    .login-side { padding:28px 24px; min-height:auto; }
+    .login-side h2 { font-size:1.5rem; }
+    .login-side small { display:none; }
+  }
   @media (max-width: 600px) {
-    body { font-size:14.5px; }
+    .gutter { padding-left:max(14px, env(safe-area-inset-left)); padding-right:max(14px, env(safe-area-inset-right)); }
+    .appbar .brand span { display:none; }
+    main { padding-top:20px; }
     h1 { font-size:1.45rem; }
-    .top .btn.ghost { padding:6px 10px; }
     .stock { table-layout:auto; } .stock col { width:auto !important; }
     .days, .ledger .opt, .ledger .yr { display:none; }
-    .ledger th, .ledger td { padding:10px 6px; }
-    .ledger { table-layout:auto; } .ledger col { width:auto !important; }
-    .ledger .wd { margin-left:2px; }
     th, td { padding:10px 8px; }
+    .ledger { table-layout:auto; } .ledger th { width:auto !important; }
+    .ledger th:first-child, .ledger td:first-child { text-align:left; }
+    .ledger th, .ledger td { padding:10px 6px; }
+    .ledger .wd { margin-left:2px; }
     .card { padding:16px 12px; }
+    .toolbar { flex-direction:column; align-items:stretch; }
+    .quick { display:flex; width:100%; } .quick button { flex:1; padding:8px 2px; font-size:12.5px; white-space:nowrap; }
     .filters .f { flex: 1 1 8rem; }
     .filters .datebox { width:100%; min-width:0; }
     .filters select { width:100%; }
-    .tilde, .filters .spacer { display:none; }
-    .filters .btn { flex: 1 1 100%; }
+    .tilde { display:none; }
+    .toolbar .btn { width:100%; }
+    .sums { width:100%; } .sum { flex:1; justify-content:center; padding:8px 6px; }
   }
 </style>
 </head>
@@ -148,85 +174,107 @@
 
 <!-- 로그인 화면 -->
 <section class="login" id="login-view">
-  <form class="login-box" id="login-form" autocomplete="off">
-    <div class="login-head">
-      <div class="brand">(주)프레시라인</div>
-      <p>고객사 재고 조회</p>
+  <div class="login-side">
+    <div class="brand">(주)프레시라인</div>
+    <div>
+      <h2>고객사 재고 조회</h2>
+      <p>매일 아침 업데이트되는 품목별 재고와 입출고 내역을 확인할 수 있습니다.</p>
     </div>
-    <div class="field"><label for="cid">아이디</label><input id="cid" name="cid" autocomplete="username" placeholder="고객사 아이디" required></div>
-    <div class="field"><label for="pw">비밀번호</label><input id="pw" name="pw" type="password" autocomplete="current-password" placeholder="비밀번호" required></div>
-    <button class="btn" id="login-btn" type="submit">조회하기</button>
-    <div class="err" id="login-err" role="alert"></div>
-    <div class="login-foot">아이디·비밀번호는 (주)프레시라인 담당자에게 문의해 주세요.</div>
-  </form>
+    <small>물류센터 위탁 재고 관리</small>
+  </div>
+  <div class="login-main">
+    <form class="login-form" id="login-form" autocomplete="off">
+      <h3>로그인</h3>
+      <div class="field"><label for="cid">아이디</label><input id="cid" name="cid" autocomplete="username" placeholder="고객사 아이디" required></div>
+      <div class="field"><label for="pw">비밀번호</label><input id="pw" name="pw" type="password" autocomplete="current-password" placeholder="비밀번호" required></div>
+      <button class="btn" id="login-btn" type="submit">조회하기</button>
+      <div class="err" id="login-err" role="alert"></div>
+      <div class="login-foot">아이디·비밀번호는 (주)프레시라인 담당자에게 문의해 주세요.</div>
+    </form>
+  </div>
 </section>
 
 <!-- 대시보드 -->
-<div class="wrap" id="dash-view" hidden>
-  <header class="top">
-    <div>
-      <p class="eyebrow">재고 현황</p>
-      <h1 id="d-title">재고 현황</h1>
-      <p class="meta"><span><b id="d-asof"></b> 기준</span><span>관리 품목 <b id="d-count"></b>종</span><span>마지막 확인 <span id="d-checked"></span></span></p>
+<div id="dash-view" hidden>
+  <header class="appbar gutter">
+    <div class="inner">
+      <div class="brand">(주)프레시라인<span>고객사 재고 조회</span></div>
+      <button class="logout" id="logout" type="button">로그아웃</button>
     </div>
-    <button class="btn ghost" id="logout" type="button">로그아웃</button>
   </header>
 
-  <section class="tiles">
-    <div class="tile"><div class="tile-head"><p class="tile-title">총 재고</p><p class="tile-sub">전체 품목 합계</p></div>
-      <div class="tile-body"><span class="value"><span id="t-total"></span><small id="t-unit"></small></span></div></div>
-    <div class="tile alert warn" id="t-low-tile"><div class="tile-head"><p class="tile-title">품절 예정</p><p class="tile-sub">재고 <span id="t-low-n"></span>박스 미만</p></div>
-      <div class="tile-body"><div class="names" id="t-low"></div></div></div>
-    <div class="tile alert bad" id="t-out-tile"><div class="tile-head"><p class="tile-title">품절</p><p class="tile-sub">재고 없음</p></div>
-      <div class="tile-body"><div class="names" id="t-out"></div></div></div>
-  </section>
+  <main class="gutter">
+    <div class="inner">
+      <div class="pagehead">
+        <h1 id="d-title">재고 현황</h1>
+        <div class="meta"><span><b id="d-asof"></b> 기준</span><span>관리 품목 <b id="d-count"></b>종</span><span>마지막 확인 <span id="d-checked"></span></span></div>
+      </div>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>품목별 현재고</h2>
-      <p class="note days">예상 소진은 최근 4주 평균 출고량으로 계산한 대략적인 기간입니다.</p>
-    </div>
-    <div class="stock-box">
-      <table class="stock">
-        <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
-        <thead><tr><th class="l">품목</th><th class="c">총 보유 수량</th><th class="c days">예상 소진</th><th class="c">상태</th></tr></thead>
-        <tbody id="stock-body"></tbody>
-      </table>
-    </div>
-  </section>
+      <section class="tiles">
+        <div class="tile">
+          <div class="tile-top"><p class="tile-title">총 재고</p><p class="tile-sub">전체 품목 합계</p></div>
+          <span class="value"><span id="t-total"></span><small id="t-unit"></small></span>
+        </div>
+        <div class="tile alert warn" id="t-low-tile">
+          <div class="tile-top"><p class="tile-title">품절 예정</p><span class="tag">확인 필요</span></div>
+          <p class="tile-sub">재고 <span id="t-low-n"></span>박스 미만 품목</p>
+          <div class="names" id="t-low"></div>
+        </div>
+        <div class="tile alert bad" id="t-out-tile">
+          <div class="tile-top"><p class="tile-title">품절</p><span class="tag">재고 없음</span></div>
+          <p class="tile-sub">재고가 0인 품목</p>
+          <div class="names" id="t-out"></div>
+        </div>
+      </section>
 
-  <section class="card">
-    <div class="card-head">
-      <h2>입출고 상세 내역</h2>
-      <p class="note">기간을 고르면 아래 표와 엑셀 파일에 함께 적용됩니다.</p>
-    </div>
-    <div class="quick" role="group" aria-label="빠른 기간 선택">
-      <button type="button" data-range="this">이번 달</button>
-      <button type="button" data-range="last">지난 달</button>
-      <button type="button" data-range="3m">최근 3개월</button>
-      <button type="button" data-range="all">전체</button>
-    </div>
-    <div class="filters">
-      <div class="f"><label for="f-from">시작일</label><span class="datebox"><span id="f-from-text"></span><input type="date" id="f-from" aria-label="시작일"></span></div>
-      <span class="tilde">~</span>
-      <div class="f"><label for="f-to">종료일</label><span class="datebox"><span id="f-to-text"></span><input type="date" id="f-to" aria-label="종료일"></span></div>
-      <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option></select></div>
-      <div class="f"><label for="f-item">품목</label><select id="f-item"><option value="">전체</option></select></div>
-      <div class="spacer"></div>
-      <button class="btn" id="dl" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg>엑셀 다운로드</button>
-    </div>
-    <div class="sums" id="sums"></div>
-    <div class="ledger-box">
-      <table class="ledger">
-        <colgroup><col class="k-date"><col class="k-kind"><col class="k-store"><col class="k-item"><col class="k-qty"><col class="k-memo opt"></colgroup>
-        <thead><tr><th class="l">일자</th><th class="c">구분</th><th class="l">점포명</th><th class="l">품목</th><th class="c">수량</th><th class="l opt">비고</th></tr></thead>
-        <tbody id="ledger-body"></tbody>
-      </table>
-      <div class="empty" id="ledger-empty" hidden>선택한 기간에 입출고 내역이 없습니다.</div>
-    </div>
-  </section>
+      <section class="card">
+        <div class="card-head">
+          <h2>품목별 현재고</h2>
+          <p class="note days">예상 소진: 최근 4주 평균 출고량 기준의 대략적인 기간</p>
+        </div>
+        <div class="frame">
+          <table class="stock">
+            <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
+            <thead><tr><th class="l">품목</th><th class="c">총 보유 수량</th><th class="c days">예상 소진</th><th class="c">상태</th></tr></thead>
+            <tbody id="stock-body"></tbody>
+          </table>
+        </div>
+      </section>
 
-  <footer><span class="brand">(주)프레시라인</span></footer>
+      <section class="card">
+        <div class="card-head">
+          <h2>입출고 상세 내역</h2>
+          <p class="note">선택한 조건이 표와 엑셀 파일에 함께 적용됩니다.</p>
+        </div>
+        <div class="toolbar">
+          <div class="quick" role="group" aria-label="빠른 기간 선택">
+            <button type="button" data-range="this">이번 달</button>
+            <button type="button" data-range="last">지난 달</button>
+            <button type="button" data-range="3m">최근 3개월</button>
+            <button type="button" data-range="all">전체</button>
+          </div>
+          <button class="btn" id="dl" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg>엑셀 다운로드</button>
+        </div>
+        <div class="filters">
+          <div class="f"><label for="f-from">시작일</label><span class="datebox"><span id="f-from-text"></span><input type="date" id="f-from" aria-label="시작일"></span></div>
+          <span class="tilde">~</span>
+          <div class="f"><label for="f-to">종료일</label><span class="datebox"><span id="f-to-text"></span><input type="date" id="f-to" aria-label="종료일"></span></div>
+          <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option></select></div>
+          <div class="f"><label for="f-item">품목</label><select id="f-item"><option value="">전체</option></select></div>
+        </div>
+        <div class="sums" id="sums"></div>
+        <div class="ledger-box">
+          <table class="ledger" id="ledger">
+            <thead><tr><th class="w-date">일자</th><th class="w-kind">구분</th><th class="w-store">점포명</th><th class="w-item">품목</th><th class="w-qty">수량</th><th class="l w-memo opt">비고</th></tr></thead>
+            <tbody id="ledger-body"></tbody>
+          </table>
+          <div class="empty" id="ledger-empty" hidden>선택한 기간에 입출고 내역이 없습니다.</div>
+        </div>
+      </section>
+
+      <footer><span class="brand">(주)프레시라인</span></footer>
+    </div>
+  </main>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -339,14 +387,15 @@
     const rows = filtered().slice().reverse();
     $('ledger-body').replaceChildren(...rows.map((r) => {
       const tr = el('tr');
-      const d = el('td', 'l'); d.append(el('span', 'yr', r['일자'].slice(0, 5)), r['일자'].slice(5), el('span', 'wd', `(${wd(r['일자'])})`));
-      const k = el('td', 'c'); k.append(el('span', r['구분'] === '입고' ? 'kind in' : 'kind', r['구분']));
-      const store = el('td', 'l', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
-      const q = el('td', 'c'); q.append(el('b', '', fmt(r['수량'])), el('small', '', D.unit));
-      tr.append(d, k, store, el('td', 'l', r['품목']), q, el('td', 'l memo opt', r['비고'] || ''));
+      const d = el('td', ''); d.append(el('span', 'yr', r['일자'].slice(0, 5)), r['일자'].slice(5), el('span', 'wd', `(${wd(r['일자'])})`));
+      const k = el('td', ''); k.append(el('span', r['구분'] === '입고' ? 'kind in' : 'kind', r['구분']));
+      const store = el('td', '', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
+      const q = el('td', ''); q.append(el('b', '', fmt(r['수량'])), el('small', '', D.unit));
+      tr.append(d, k, store, el('td', '', r['품목']), q, el('td', 'memo opt', r['비고'] || ''));
       return tr;
     }));
     $('ledger-empty').hidden = rows.length > 0;
+    $('ledger').classList.toggle('no-memo', !rows.some((r) => r['비고']));
     const sin = rows.filter((r) => r['구분'] === '입고').reduce((a, r) => a + r['수량'], 0);
     const sout = rows.filter((r) => r['구분'] === '출고').reduce((a, r) => a + r['수량'], 0);
     const pill = (cls, label, val) => { const s = el('span', `sum ${cls}`); s.append(label, el('b', '', val)); return s; };

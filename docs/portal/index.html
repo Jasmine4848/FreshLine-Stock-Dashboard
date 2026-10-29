@@ -78,6 +78,12 @@
   .filters label { font-size:12px; color:var(--muted); font-weight:700; }
   .filters input, .filters select { padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); min-width:0; }
   .filters .spacer { flex:1; }
+  .datebox { position:relative; display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); min-width:9.5rem; cursor:pointer; font-variant-numeric:tabular-nums; }
+  .datebox::after { content:""; width:14px; height:14px; margin-left:auto; opacity:.6; background: currentColor;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2v12h12V3h-2V1h-1.5v2h-5V1zM3.5 6h9v7.5h-9z'/%3E%3C/svg%3E") center/contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 1v2H2v12h12V3h-2V1h-1.5v2h-5V1zM3.5 6h9v7.5h-9z'/%3E%3C/svg%3E") center/contain no-repeat; }
+  .datebox input[type=date] { position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:0; padding:0; }
+  .datebox:focus-within { outline:2px solid var(--accent); outline-offset:1px; }
   .sumline { font-size:13.5px; color:var(--muted); }
   .sumline b { color:var(--fg); }
   .ledger-box { max-height: 26rem; overflow:auto; border:1px solid var(--line); border-radius:8px; }
@@ -146,8 +152,8 @@
   <section class="card">
     <h2>입출고 상세 내역</h2>
     <div class="filters">
-      <div class="f"><label for="f-from">시작일</label><input type="date" id="f-from"></div>
-      <div class="f"><label for="f-to">종료일</label><input type="date" id="f-to"></div>
+      <div class="f"><label for="f-from">시작일</label><span class="datebox"><span class="dtext" id="f-from-text"></span><input type="date" id="f-from" aria-label="시작일"></span></div>
+      <div class="f"><label for="f-to">종료일</label><span class="datebox"><span class="dtext" id="f-to-text"></span><input type="date" id="f-to" aria-label="종료일"></span></div>
       <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option></select></div>
       <div class="f"><label for="f-item">품목</label><select id="f-item"><option value="">전체</option></select></div>
       <div class="spacer"></div>
@@ -237,6 +243,7 @@
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
     $('f-from').value = D.asof.slice(0, 8) + '01'; $('f-to').value = D.asof;
     $('f-kind').value = '';
+    syncDates();
     renderLedger();
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
   }
@@ -260,7 +267,12 @@
     const sout = rows.filter((r) => r['구분'] === '출고').reduce((a, r) => a + r['수량'], 0);
     $('sumline').replaceChildren('조회 ', el('b', '', `${rows.length}건`), ` · 입고 `, el('b', '', `${fmt(sin)}${D.unit}`), ` · 출고 `, el('b', '', `${fmt(sout)}${D.unit}`));
   }
-  ['f-from', 'f-to', 'f-kind', 'f-item'].forEach((id) => $(id).addEventListener('change', renderLedger));
+  const syncDates = () => ['f-from', 'f-to'].forEach((id) => { $(id + '-text').textContent = $(id).value || '전체'; });
+  ['f-from', 'f-to'].forEach((id) => {
+    $(id).addEventListener('click', () => { try { $(id).showPicker(); } catch (_) {} });
+    $(id).addEventListener('input', syncDates);
+  });
+  ['f-from', 'f-to', 'f-kind', 'f-item'].forEach((id) => $(id).addEventListener('change', () => { syncDates(); renderLedger(); }));
 
   $('dl').addEventListener('click', () => {
     if (!D) return;

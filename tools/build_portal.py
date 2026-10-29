@@ -108,11 +108,18 @@ def load_brand_pack(wb, cfg):
 
 def load_pack6(wb, cfg):
     st = wb['입출고현황']
+    per = {}
+    if '품목정보' in wb.sheetnames:                     # 박스입수: 품목정보 E열 ("6팩")
+        pi = wb['품목정보']
+        for r in range(5, pi.max_row + 1):
+            n = s(pi.cell(r, 3).value)
+            digits = ''.join(ch for ch in s(pi.cell(r, 5).value) if ch.isdigit())
+            if n and digits: per[n] = int(digits)
     items = []
     for r in range(7, st.max_row + 1):
         n = s(st.cell(r, 2).value)
         if not n or n == '합계': break
-        items.append({'품목': n, '단위': '팩', '입수': 6, '기초': num(st.cell(r, 8).value)})
+        items.append({'품목': n, '단위': '팩', '입수': per.get(n, 6), '기초': num(st.cell(r, 8).value)})
     rows = []
     for r in wb['입고내역'].iter_rows(min_row=2, max_col=5, values_only=True):
         if not d(r[0]) or not s(r[1]): continue

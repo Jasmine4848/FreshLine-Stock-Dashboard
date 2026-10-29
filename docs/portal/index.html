@@ -9,12 +9,12 @@
   /* 방향: 물류 운영 화면. 짙은 남색 상단바 + 흰 작업면, 각진 모서리, 촘촘한 표. 강조색은 코발트 하나, 경고는 앰버·레드. */
   :root { --bar:#13233f; --bar-fg:#ffffff; --bar-muted:#a9b6cc;
           --bg:#eef1f5; --panel:#ffffff; --fg:#17202e; --muted:#5d6878; --faint:#8b95a5; --line:#dbe0e8; --line-strong:#c4ccd8; --head:#f5f7fa;
-          --accent:#2456c9; --accent-soft:#e8eefc; --warn:#b85c00; --warn-soft:#fff3e2; --bad:#c62828; --bad-soft:#fdecec; --ok:#1d7a5a; --ok-soft:#e5f4ee;
+          --accent:#2456c9; --accent-soft:#e8eefc; --warn:#b85c00; --warn-soft:#fff3e2; --bad:#c62828; --bad-soft:#fdecec; --ok:#1d7a5a; --ok-soft:#e5f4ee; --in:#1f5fd1; --in-soft:#e6efff; --out:#8a3fc2; --out-soft:#f3e9fb;
           --hover:#f3f6fb; --radius:6px; color-scheme: light;
           --font:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif; }
   @media (prefers-color-scheme: dark) { :root { --bar:#0b1526; --bar-fg:#eef2f8; --bar-muted:#8e9bb2;
           --bg:#0f1622; --panel:#172131; --fg:#e7ecf3; --muted:#a3adbd; --faint:#7d889a; --line:#28344a; --line-strong:#35425a; --head:#1c283b;
-          --accent:#7ea4ff; --accent-soft:#1d2c4d; --warn:#f2a64b; --warn-soft:#3a2a14; --bad:#ff7d73; --bad-soft:#3d1d1d; --ok:#5ccf9f; --ok-soft:#163328;
+          --accent:#7ea4ff; --accent-soft:#1d2c4d; --warn:#f2a64b; --warn-soft:#3a2a14; --bad:#ff7d73; --bad-soft:#3d1d1d; --ok:#5ccf9f; --ok-soft:#163328; --in:#86aeff; --in-soft:#1b2b4c; --out:#d0a2f5; --out-soft:#33204a;
           --hover:#1d293d; color-scheme: dark; } }
   * { box-sizing: border-box; }
   [hidden] { display:none !important; }
@@ -128,7 +128,8 @@
   .sum { display:inline-flex; gap:8px; align-items:baseline; padding:8px 16px; font-size:12.5px; color:var(--muted); font-variant-numeric:tabular-nums; border-right:1px solid var(--line); background:var(--head); }
   .sum:last-child { border-right:0; }
   .sum b { color:var(--fg); font-size:15px; white-space:nowrap; }
-  .sum.in b { color:var(--accent); }
+  .sum.in b { color:var(--in); }
+  .sum.out b { color:var(--out); }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
   .ledger th { position:sticky; top:0; z-index:1; }
@@ -140,7 +141,8 @@
   .ledger.no-memo .opt, .ledger.no-store .st { display:none; }
   .ledger.no-store .w-item { width:26%; } .ledger.no-store.no-memo .w-item { width:34%; } .ledger.no-store.no-memo .w-date { width:26%; } .ledger.no-store.no-memo .w-kind { width:18%; } .ledger.no-store.no-memo .w-qty { width:22%; }
   .kind { display:inline-block; font-size:12px; font-weight:700; padding:2px 9px; border-radius:4px; background:var(--head); color:var(--muted); border:1px solid var(--line); }
-  .kind.in { background:var(--accent-soft); color:var(--accent); border-color:transparent; }
+  .kind.in { background:var(--in-soft); color:var(--in); border-color:transparent; }
+  .kind.out { background:var(--out-soft); color:var(--out); border-color:transparent; }
   .ledger td.memo { white-space:normal; color:var(--muted); font-size:13px; }
   .ledger .wd { color:var(--faint); font-size:12px; margin-left:4px; }
   .empty { padding:28px; text-align:center; color:var(--muted); }
@@ -445,7 +447,7 @@
     $('ledger-body').replaceChildren(...rows.map((r) => {
       const tr = el('tr');
       const d = el('td', ''); d.append(el('span', 'yr', r['일자'].slice(0, 5)), r['일자'].slice(5), el('span', 'wd', `(${wd(r['일자'])})`));
-      const k = el('td', ''); k.append(el('span', r['구분'] === '입고' ? 'kind in' : 'kind', r['구분']));
+      const k = el('td', ''); k.append(el('span', r['구분'] === '입고' ? 'kind in' : (r['구분'] === '출고' ? 'kind out' : 'kind'), r['구분']));
       const store = el('td', 'st', shortStore(r['점포'])); if (r['점포']) store.title = r['점포'];
       const q = el('td', ''); q.append(el('b', '', fmt(r['수량'])), el('small', '', r['단위']));
       tr.append(d, k, store, el('td', '', r['품목']), q, el('td', 'memo opt', r['비고'] || ''));
@@ -457,7 +459,7 @@
     const sin = unitSums(rows.filter((r) => r['구분'] === '입고'));
     const sout = unitSums(rows.filter((r) => r['구분'] === '출고'));
     const pill = (cls, label, val) => { const s = el('span', `sum ${cls}`); s.append(label, el('b', '', val)); return s; };
-    $('sums').replaceChildren(pill('', '조회', `${rows.length}건`), pill('in', '입고', sin), pill('', '출고', sout));
+    $('sums').replaceChildren(pill('', '조회', `${rows.length}건`), pill('in', '입고', sin), pill('out', '출고', sout));
   }
 
   $('dl').addEventListener('click', () => {

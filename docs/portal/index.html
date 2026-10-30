@@ -452,7 +452,14 @@
   })();
 
   let A = null;   // 관리자 데이터
-  function route() { if (D && D.admin) { A = D; showAdmin(); } else { A = null; show(); } }
+  function route() {
+    if (D && D.admin) {
+      A = D;
+      // 새로고침했을 때 보던 고객사 화면(#아이디)이 있으면 그대로 연다
+      const want = decodeURIComponent(location.hash.slice(1)), i = A.clients.findIndex((c) => c.account === want);
+      if (i >= 0) { history.replaceState({ client: want }, '', location.hash); openClient(i); } else showAdmin();
+    } else { A = null; show(); }
+  }
   function showAdmin() {
     D = null;
     document.title = '(주)프레시라인 관리자';
@@ -462,7 +469,7 @@
     $('a-count').textContent = C.length; $('a-checked').textContent = A.checked;
     $('a-body').replaceChildren(...C.map((c, i) => {
       const tr = el('tr');
-      const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => openClient(i)); nm.append(b);
+      const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => { history.pushState({ client: c.account }, '', '#' + encodeURIComponent(c.account)); openClient(i); }); nm.append(b);
       const o = c.stock.filter((s) => s['상태'] === '품절').length, w = c.stock.filter((s) => s['상태'] === '품절 예정').length;
       tr.append(nm, el('td', 'c', `${md(c.asof)} (${wd(c.asof)})`), el('td', 'c', `${c.stock.length}종`),
         el('td', 'c ' + (o ? 'nb' : 'n0'), String(o)), el('td', 'c ' + (w ? 'nw' : 'n0'), String(w)),
@@ -487,10 +494,16 @@
     show();
     $('bar-sub').textContent = `관리자 · ${D.name} 화면`; $('back-admin').hidden = false;
   }
-  $('back-admin').addEventListener('click', showAdmin);
+  // '← 전체 고객사' 버튼과 브라우저 뒤로가기 모두 관리자 첫 화면으로
+  $('back-admin').addEventListener('click', () => { if (history.state && history.state.client) history.back(); else { history.replaceState(null, '', location.pathname + location.search); showAdmin(); } });
+  window.addEventListener('popstate', (e) => {
+    if (!A) return;
+    const want = e.state && e.state.client, i = want ? A.clients.findIndex((c) => c.account === want) : -1;
+    if (i >= 0) openClient(i); else showAdmin();
+  });
 
   $('logout').addEventListener('click', () => {
-    saveSession(null); A = null;
+    saveSession(null); A = null; if (location.hash) history.replaceState(null, '', location.pathname + location.search);
     $('dash-view').classList.remove('admin-mode'); $('admin-panel').hidden = true; $('back-admin').hidden = true; $('bar-sub').textContent = '고객사 재고 조회';
     D = null; $('stock-body').replaceChildren(); $('ledger-body').replaceChildren(); $('sums').replaceChildren();
     $('dash-view').hidden = true; $('login-view').hidden = false; $('cid').value = ''; $('pw').value = '';

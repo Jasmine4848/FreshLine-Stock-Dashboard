@@ -115,6 +115,14 @@
   .filters input[type=search]:focus { outline:2px solid var(--accent); outline-offset:1px; }
   .stock-filters { margin:4px 0 12px; }
   .stock-filters select, .stock-filters input[type=search] { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
+  .stock-box { max-height: 28rem; overflow:auto; }
+  .stock-box .stock th { position:sticky; top:0; z-index:1; }
+  .pager { display:flex; justify-content:center; flex-wrap:wrap; gap:4px; margin-top:12px; }
+  .pager:empty { display:none; }
+  .pager button { min-width:34px; height:34px; padding:0 8px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); color:var(--muted); cursor:pointer; font-size:13px; font-variant-numeric:tabular-nums; }
+  .pager button:hover:not(:disabled) { background:var(--hover); color:var(--fg); }
+  .pager button[aria-current=page] { background:var(--accent); border-color:var(--accent); color:#fff; font-weight:700; }
+  .pager button:disabled { opacity:.4; cursor:default; }
   .stock .empty td { text-align:center; color:var(--muted); padding:22px 8px; }
   .filters select { padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:6.5rem; }
   .datebox { position:relative; display:inline-flex; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:9.5rem; cursor:pointer; font-variant-numeric:tabular-nums; }
@@ -302,13 +310,14 @@
           <div class="f"><label for="s-q">품목 검색</label><input type="search" id="s-q" placeholder="품목명 입력" autocomplete="off"></div>
           <div class="f"><label for="s-status">상태</label><select id="s-status"><option value="">전체</option><option>여유</option><option>품절 예정</option><option>품절</option></select></div>
         </div>
-        <div class="frame">
+        <div class="frame stock-box">
           <table class="stock">
             <colgroup><col class="c1"><col class="c2"><col class="c3"><col class="c4"></colgroup>
             <thead><tr><th class="l">품목</th><th class="c">총 보유 수량</th><th class="c days">예상 소진</th><th class="c">상태</th></tr></thead>
             <tbody id="stock-body"></tbody>
           </table>
         </div>
+        <nav class="pager" id="stock-pager" aria-label="품목 페이지"></nav>
       </section>
 
       <section class="card" id="fee-card" hidden>
@@ -545,18 +554,34 @@
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
   }
 
-  function filterStock() {
+  const PAGE = 10;
+  let stockPage = 1;
+  function filterStock(keepPage) {
+    if (keepPage !== true) stockPage = 1;
     const q = $('s-q').value.toLowerCase().replace(/\s+/g, ''), st = $('s-status').value;
     const body = $('stock-body'); body.querySelector('.empty')?.remove();
-    let n = 0;
-    for (const tr of body.rows) {
-      const ok = (!q || tr.dataset.name.includes(q)) && (!st || tr.dataset.status === st);
-      tr.hidden = !ok; if (ok) n++;
-    }
-    if (!n) { const tr = el('tr', 'empty'); const td = el('td', '', '조건에 맞는 품목이 없습니다.'); td.colSpan = 4; tr.append(td); body.append(tr); }
+    const rows = [...body.rows];
+    const hit = rows.filter((tr) => (!q || tr.dataset.name.includes(q)) && (!st || tr.dataset.status === st));
+    const pages = Math.max(1, Math.ceil(hit.length / PAGE));
+    stockPage = Math.min(Math.max(1, stockPage), pages);
+    const show = new Set(hit.slice((stockPage - 1) * PAGE, stockPage * PAGE));
+    rows.forEach((tr) => { tr.hidden = !show.has(tr); });
+    if (!hit.length) { const tr = el('tr', 'empty'); const td = el('td', '', '조건에 맞는 품목이 없습니다.'); td.colSpan = 4; tr.append(td); body.append(tr); }
+    const pager = $('stock-pager');
+    if (hit.length <= PAGE) { pager.replaceChildren(); return; }
+    const btn = (label, page, aria) => {
+      const b = el('button', '', label); b.type = 'button';
+      if (aria) b.setAttribute('aria-label', aria);
+      if (page === stockPage && !aria) b.setAttribute('aria-current', 'page');
+      if (page < 1 || page > pages) b.disabled = true;
+      b.addEventListener('click', () => { stockPage = page; filterStock(true); document.querySelector('.stock-box').scrollTop = 0; });
+      return b;
+    };
+    const nums = Array.from({ length: pages }, (_, i) => btn(String(i + 1), i + 1));
+    pager.replaceChildren(btn('‹', stockPage - 1, '이전 페이지'), ...nums, btn('›', stockPage + 1, '다음 페이지'));
   }
-  $('s-q').addEventListener('input', filterStock);
-  $('s-status').addEventListener('change', filterStock);
+  $('s-q').addEventListener('input', () => filterStock());
+  $('s-status').addEventListener('change', () => filterStock());
 
   // ---------- 배송료 정산 ----------
   const lastDay = (y, m) => new Date(y, m + 1, 0).getDate();

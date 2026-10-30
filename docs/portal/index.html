@@ -144,6 +144,24 @@
   .fee-ex { margin-top:10px; font-size:12.5px; color:var(--muted); }
   .fee-ex summary { cursor:pointer; width:max-content; }
   .fee-ex ul { list-style:none; margin:8px 0 0; padding:8px 12px; background:var(--head); border-radius:var(--radius); line-height:1.7; max-height:10rem; overflow:auto; font-size:12px; }
+  .bar-btns { display:flex; gap:8px; }
+  #dash-view.admin-mode main .inner > :not(#admin-panel) { display:none; }
+  #admin-panel { display:grid; gap:16px; }
+  #admin-panel[hidden] { display:none; }
+  .scroll-x { overflow-x:auto; }
+  .admin-table { min-width:760px; }
+  .admin-table td, .admin-table th { padding:11px 12px; }
+  .admin-table td.r, .admin-table th.r { text-align:right; }
+  .admin-table .go { background:none; border:0; padding:0; color:var(--accent); font-weight:700; cursor:pointer; font-size:inherit; text-decoration:underline; text-underline-offset:3px; }
+  .admin-table .n0 { color:var(--faint); }
+  .admin-table .nb { color:var(--bad); font-weight:700; } .admin-table .nw { color:var(--warn); font-weight:700; }
+  .watch { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap:10px; }
+  .watch .w { border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px; display:grid; gap:6px; align-content:start; }
+  .watch .w b { font-size:14px; }
+  .watch .w .row { font-size:13px; line-height:1.6; }
+  .watch .w .row span { display:inline-block; font-size:11.5px; font-weight:600; padding:1px 7px; border-radius:4px; margin-right:6px; }
+  .watch .w .row .b { color:var(--bad); background:var(--bad-soft); } .watch .w .row .wn { color:var(--warn); background:var(--warn-soft); }
+  .sched { margin:0; padding-left:18px; line-height:1.9; font-size:14px; }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
   .ledger th { position:sticky; top:0; z-index:1; }
@@ -223,13 +241,41 @@
 <div id="dash-view" hidden>
   <header class="appbar gutter">
     <div class="inner">
-      <div class="brand">(주)프레시라인<span>고객사 재고 조회</span></div>
-      <button class="logout" id="logout" type="button">로그아웃</button>
+      <div class="brand">(주)프레시라인<span id="bar-sub">고객사 재고 조회</span></div>
+      <div class="bar-btns"><button class="logout" id="back-admin" type="button" hidden>← 전체 고객사</button><button class="logout" id="logout" type="button">로그아웃</button></div>
     </div>
   </header>
 
   <main class="gutter">
     <div class="inner">
+      <div id="admin-panel" hidden>
+        <div class="pagehead">
+          <h1>전체 고객사 현황</h1>
+          <div class="meta"><span>고객사 <b id="a-count"></b>곳</span><span>마지막 확인 <span id="a-checked"></span></span></div>
+        </div>
+        <section class="tiles">
+          <div class="tile alert bad" id="a-out-tile"><div class="tile-top"><p class="tile-title">품절</p><span class="tag">재고 없음</span></div><p class="tile-sub">전체 고객사 품절 품목 수</p><span class="value"><span id="a-out"></span><small>개 품목</small></span></div>
+          <div class="tile alert warn" id="a-low-tile"><div class="tile-top"><p class="tile-title">품절 예정</p><span class="tag">확인 필요</span></div><p class="tile-sub">5박스(낱개 품목 5개) 미만 품목 수</p><span class="value"><span id="a-low"></span><small>개 품목</small></span></div>
+          <div class="tile"><div class="tile-top"><p class="tile-title">현재 정산 기간 배송료</p></div><p class="tile-sub">고객사별 현재 정산 기간 합계를 더한 금액</p><span class="value"><span id="a-fee"></span><small>원</small></span></div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2>고객사별 요약</h2><p class="note">고객사 이름을 누르면 그 고객사 화면을 그대로 볼 수 있습니다.</p></div>
+          <div class="frame scroll-x">
+            <table class="admin-table">
+              <thead><tr><th class="l">고객사</th><th class="c">기준일</th><th class="c">품목</th><th class="c">품절</th><th class="c">품절 예정</th><th class="c">정산 기간</th><th class="r">배송료</th><th class="c">로그인 아이디</th></tr></thead>
+              <tbody id="a-body"></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="card">
+          <div class="card-head"><h2>확인 필요 품목</h2><p class="note">품절·품절 예정 품목을 고객사별로 모았습니다.</p></div>
+          <div class="watch" id="a-watch"></div>
+        </section>
+        <section class="card" id="a-sched-card">
+          <div class="card-head"><h2>자동 업데이트 일정</h2></div>
+          <ul class="sched" id="a-sched"></ul>
+        </section>
+      </div>
       <div class="pagehead">
         <h1 id="d-title">재고 현황</h1>
         <div class="meta"><span><b id="d-asof"></b> 기준</span><span>관리 품목 <b id="d-count"></b>종</span><span>마지막 확인 <span id="d-checked"></span></span></div>
@@ -369,7 +415,7 @@
       D = await decryptWith(blob, key);
       saveSession({ h, salt: blob.salt, k: toB64(await crypto.subtle.exportKey('raw', key)) });
       $('pw').value = '';
-      show();
+      route();
     } catch (_) {
       err.textContent = '아이디 또는 비밀번호가 맞지 않습니다.';
     } finally { btn.disabled = false; btn.textContent = '조회하기'; }
@@ -385,12 +431,56 @@
       if (blob.salt !== ss.salt) throw new Error('changed');
       const key = await crypto.subtle.importKey('raw', b64(ss.k), { name: 'AES-GCM' }, false, ['decrypt']);
       D = await decryptWith(blob, key);
-      show();
+      route();
     } catch (_) { saveSession(null); }
   })();
 
+  let A = null;   // 관리자 데이터
+  function route() { if (D && D.admin) { A = D; showAdmin(); } else { A = null; show(); } }
+  function showAdmin() {
+    D = null;
+    document.title = '(주)프레시라인 관리자';
+    $('bar-sub').textContent = '관리자'; $('back-admin').hidden = true;
+    $('dash-view').classList.add('admin-mode'); $('admin-panel').hidden = false;
+    const C = A.clients, md = (x) => x.slice(5).replace('-', '/');
+    $('a-count').textContent = C.length; $('a-checked').textContent = A.checked;
+    const outN = C.reduce((t, c) => t + c.stock.filter((s) => s['상태'] === '품절').length, 0);
+    const lowN = C.reduce((t, c) => t + c.stock.filter((s) => s['상태'] === '품절 예정').length, 0);
+    $('a-out').textContent = outN; $('a-out-tile').classList.toggle('on', outN > 0);
+    $('a-low').textContent = lowN; $('a-low-tile').classList.toggle('on', lowN > 0);
+    $('a-fee').textContent = fmt(C.reduce((t, c) => t + (c.fee ? c.fee.total : 0), 0));
+    $('a-body').replaceChildren(...C.map((c, i) => {
+      const tr = el('tr');
+      const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => openClient(i)); nm.append(b);
+      const o = c.stock.filter((s) => s['상태'] === '품절').length, w = c.stock.filter((s) => s['상태'] === '품절 예정').length;
+      tr.append(nm, el('td', 'c', `${md(c.asof)} (${wd(c.asof)})`), el('td', 'c', `${c.stock.length}종`),
+        el('td', 'c ' + (o ? 'nb' : 'n0'), String(o)), el('td', 'c ' + (w ? 'nw' : 'n0'), String(w)),
+        el('td', 'c', c.fee ? `${md(c.fee.from)} ~ ${md(c.fee.to)}` : '-'), el('td', 'r', c.fee ? `${fmt(c.fee.total)}원` : '-'), el('td', 'c', c.account));
+      return tr;
+    }));
+    $('a-watch').replaceChildren(...C.filter((c) => c.stock.some((s) => s['상태'] !== '여유')).map((c) => {
+      const box = el('div', 'w'); box.append(el('b', '', c.name));
+      for (const [st, cls] of [['품절', 'b'], ['품절 예정', 'wn']]) {
+        const names = c.stock.filter((s) => s['상태'] === st).map((s) => s['품목']);
+        if (names.length) { const r = el('div', 'row'); r.append(el('span', cls, st), names.join(', ')); box.append(r); }
+      }
+      return box;
+    }));
+    $('a-sched-card').hidden = !(A.schedule || []).length;
+    $('a-sched').replaceChildren(...(A.schedule || []).map((x) => el('li', '', x)));
+    $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
+  }
+  function openClient(i) {
+    D = A.clients[i];
+    $('dash-view').classList.remove('admin-mode'); $('admin-panel').hidden = true;
+    show();
+    $('bar-sub').textContent = `관리자 · ${D.name} 화면`; $('back-admin').hidden = false;
+  }
+  $('back-admin').addEventListener('click', showAdmin);
+
   $('logout').addEventListener('click', () => {
-    saveSession(null);
+    saveSession(null); A = null;
+    $('dash-view').classList.remove('admin-mode'); $('admin-panel').hidden = true; $('back-admin').hidden = true; $('bar-sub').textContent = '고객사 재고 조회';
     D = null; $('stock-body').replaceChildren(); $('ledger-body').replaceChildren(); $('sums').replaceChildren();
     $('dash-view').hidden = true; $('login-view').hidden = false; $('cid').value = ''; $('pw').value = '';
     document.title = '(주)프레시라인 재고 조회';

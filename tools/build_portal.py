@@ -269,7 +269,9 @@ def main(base_dir, cfg_file, out_dir, only=None):
     checked = dt.datetime.now(ZoneInfo('Asia/Seoul')).strftime('%Y-%m-%d %H:%M')
     os.makedirs(out_dir, exist_ok=True)
     results = []
+    built = {}
     for cfg in clients:
+        if cfg.get('kind') == 'admin': continue
         if only and cfg['id'] not in only: continue
         if cfg['id'] not in pws:
             results.append((cfg['id'], '비밀번호 없음 - 건너뜀')); continue
@@ -279,9 +281,40 @@ def main(base_dir, cfg_file, out_dir, only=None):
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows, 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
+        built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))
+    if built:                                   # 관리자 화면 데이터: 고객사 데이터가 하나라도 바뀌면 함께 다시 만든다
+        for adm in [c for c in clients if c.get('kind') == 'admin' and c.get('pw')]:
+            try:
+                build_admin(adm, clients, pws, built, out_dir, checked)
+                results.append((adm['id'], '관리자 화면 갱신'))
+            except Exception as e:
+                results.append((adm['id'], f'관리자 화면 실패: {e}'))
     for r in results: print(r)
     return results
+
+def decrypt_file(path, password):
+    blob = json.load(open(path))
+    b = base64.b64decode
+    key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b(blob['salt']), iterations=blob['iter']).derive(password.encode('utf-8'))
+    return json.loads(AESGCM(key).decrypt(b(blob['iv']), b(blob['ct']), None))
+
+def build_admin(adm, clients, pws, built, out_dir, checked):
+    """관리자 계정: 모든 고객사 데이터를 한 파일에 담는다(이번에 안 만든 고객사는 기존 파일을 풀어서 쓴다). 시험용 계정(test)은 뺀다."""
+    out = []
+    for c in clients:
+        if c.get('kind') == 'admin' or c.get('test') or c['id'] not in pws: continue
+        pl = built.get(c['id'])
+        path = os.path.join(out_dir, id_hash(c['id']) + '.json')
+        if pl is None and os.path.exists(path):
+            try: pl = decrypt_file(path, pws[c['id']])
+            except Exception: pl = None
+        if pl is None: continue
+        pl = dict(pl, account=c['id'])
+        out.append(pl)
+    payload = {'admin': True, 'name': adm.get('name', '관리자'), 'checked': checked, 'low': LOW_BOX,
+               'schedule': adm.get('schedule', []), 'clients': out}
+    json.dump(encrypt(payload, adm['pw'], adm['id']), open(os.path.join(out_dir, id_hash(adm['id']) + '.json'), 'w'))
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4:] or None)

@@ -70,6 +70,15 @@ def load_standard(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[2]), '품목': s(r[3]), '수량': num(r[5]), '단위': unit_of(r[4], cfg.get('unit', '박스')), '비고': s(r[6]) if len(r) > 6 else ''})
     return items, rows
 
+def load_store_first(wb, cfg):
+    """표준 양식에서 출고내역에 브랜드 열이 없는 것: A 일자, B 점포, C 품목, D 규격, E 수량, F 비고"""
+    items, rows = load_standard(wb, dict(cfg, _skip_out=True))
+    rows = [r for r in rows if r['구분'] != '출고']
+    for r in wb['출고내역'].iter_rows(min_row=2, max_col=6, values_only=True):
+        if not d(r[0]) or not s(r[2]): continue
+        rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': unit_of(r[3], cfg.get('unit', '박스')), '비고': s(r[5]) if len(r) > 5 else ''})
+    return items, rows
+
 def load_pack_info(wb, cfg):
     st, pi = wb['입출고현황'], wb['품목정보']
     per = {}
@@ -153,7 +162,7 @@ def load_single_ledger(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': s(r[1]), '점포': '', '품목': s(r[3]), '수량': num(r[4]), '단위': '개', '비고': s(r[5])})
     return items, rows
 
-LOADERS = {'standard': load_standard, 'pack_info': load_pack_info, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger}
+LOADERS = {'standard': load_standard, 'store_first': load_store_first, 'pack_info': load_pack_info, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger}
 
 
 # ---------- 계산 ----------
@@ -282,7 +291,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
     results = []
     built = {}
     for cfg in clients:
-        if cfg.get('kind') == 'admin': continue
+        if cfg.get('kind') == 'admin' or cfg.get('portal') is False: continue
         if only and cfg['id'] not in only: continue
         if cfg['id'] not in pws:
             results.append((cfg['id'], '비밀번호 없음 - 건너뜀')); continue
@@ -314,7 +323,7 @@ def build_admin(adm, clients, pws, built, out_dir, checked):
     """관리자 계정: 모든 고객사 데이터를 한 파일에 담는다(이번에 안 만든 고객사는 기존 파일을 풀어서 쓴다). 시험용 계정(test)은 뺀다."""
     out = []
     for c in clients:
-        if c.get('kind') == 'admin' or c.get('test') or c['id'] not in pws: continue
+        if c.get('kind') == 'admin' or c.get('test') or c.get('portal') is False or c['id'] not in pws: continue
         pl = built.get(c['id'])
         path = os.path.join(out_dir, id_hash(c['id']) + '.json')
         if pl is None and os.path.exists(path):

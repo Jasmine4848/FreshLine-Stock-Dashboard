@@ -36,12 +36,13 @@ def sim(a, b):
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 class Client:
-    def __init__(self, cid, brands, tags, items, stores, base_unit, per_box, aliases=None, pk_as_box=False):
+    def __init__(self, cid, brands, tags, items, stores, base_unit, per_box, aliases=None, pk_as_box=False, exclude=None):
         self.cid, self.items, self.stores = cid, items, stores
         self.brands = [raw(b) for b in brands]
         self.item_tags = [raw(t) for t in tags]
         self.base_unit, self.per_box, self.pk_as_box = base_unit, per_box, pk_as_box
         self.aliases = {norm(k): v for k, v in (aliases or {}).items()}
+        self.exclude = {norm(x) for x in (exclude or [])}        # 위탁재고가 아닌 원본 품목명(예: 정육)
         self.strip = sorted({norm(x) for x in brands + tags if norm(x)}, key=len, reverse=True)
         self.keys = {it: self._strip(norm(it)) for it in items}
 
@@ -70,6 +71,7 @@ class Client:
 
     def item(self, src):
         full = norm(src); n = self._strip(full)
+        if full in self.exclude or n in self.exclude: return None, 0, '제외 품목'
         for key in (n, full):
             if key in self.aliases: return self.aliases[key], 1.0, '대응표'
         for it, k in self.keys.items():
@@ -133,6 +135,7 @@ LAYOUT = {
     'pack6':     {'date': 1, 'brand': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'PK'},
     'pack_info': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'PK'},
     'brand_pack': {'date': 1, 'store': 2, 'item': 3, 'box': 4, 'qty': 5, 'base': 'PK'},
+    'store_first': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'BOX'},
 }
 
 def to_int(v):
@@ -318,7 +321,7 @@ def run(base_dir, cfg_file, src_file, state_file, apply=False, today=None, files
         sy = cfg['sync']; L = LAYOUT[cfg['kind']]
         stores = sorted({x['점포'] for x in ledger if x['점포']})
         cl = Client(cfg['id'], sy.get('brands', []), sy.get('tags', []), items, stores, L['base'], per,
-                    sy.get('aliases'), sy.get('pk_as_box', False))
+                    sy.get('aliases'), sy.get('pk_as_box', False), sy.get('exclude'))
         prepared.append((cfg, path, cl, ledger, last_row, per))
     matched = classify(src, [p[2] for p in prepared])
     report, plans = {}, {}

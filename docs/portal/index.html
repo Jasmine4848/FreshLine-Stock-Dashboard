@@ -253,11 +253,6 @@
           <h1>전체 고객사 현황</h1>
           <div class="meta"><span>고객사 <b id="a-count"></b>곳</span><span>마지막 확인 <span id="a-checked"></span></span></div>
         </div>
-        <section class="tiles">
-          <div class="tile alert bad" id="a-out-tile"><div class="tile-top"><p class="tile-title">품절</p><span class="tag">재고 없음</span></div><p class="tile-sub">전체 고객사 품절 품목 수</p><span class="value"><span id="a-out"></span><small>개 품목</small></span></div>
-          <div class="tile alert warn" id="a-low-tile"><div class="tile-top"><p class="tile-title">품절 예정</p><span class="tag">확인 필요</span></div><p class="tile-sub">5박스(낱개 품목 5개) 미만 품목 수</p><span class="value"><span id="a-low"></span><small>개 품목</small></span></div>
-          <div class="tile"><div class="tile-top"><p class="tile-title">현재 정산 기간 배송료</p></div><p class="tile-sub">고객사별 현재 정산 기간 합계를 더한 금액</p><span class="value"><span id="a-fee"></span><small>원</small></span></div>
-        </section>
         <section class="card">
           <div class="card-head"><h2>고객사별 요약</h2><p class="note">고객사 이름을 누르면 그 고객사 화면을 그대로 볼 수 있습니다.</p></div>
           <div class="frame scroll-x">
@@ -444,11 +439,6 @@
     $('dash-view').classList.add('admin-mode'); $('admin-panel').hidden = false;
     const C = A.clients, md = (x) => x.slice(5).replace('-', '/');
     $('a-count').textContent = C.length; $('a-checked').textContent = A.checked;
-    const outN = C.reduce((t, c) => t + c.stock.filter((s) => s['상태'] === '품절').length, 0);
-    const lowN = C.reduce((t, c) => t + c.stock.filter((s) => s['상태'] === '품절 예정').length, 0);
-    $('a-out').textContent = outN; $('a-out-tile').classList.toggle('on', outN > 0);
-    $('a-low').textContent = lowN; $('a-low-tile').classList.toggle('on', lowN > 0);
-    $('a-fee').textContent = fmt(C.reduce((t, c) => t + (c.fee ? c.fee.total : 0), 0));
     $('a-body').replaceChildren(...C.map((c, i) => {
       const tr = el('tr');
       const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => openClient(i)); nm.append(b);

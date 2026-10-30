@@ -138,6 +138,9 @@
   .fee-cell.total { background:var(--accent-soft); }
   .fee-cell.total .v { font-size:1.5rem; font-weight:700; color:var(--accent); }
   .fee-cell .v small { font-size:13px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .fee-filters { margin:2px 0 12px; }
+  .fee-filters select { min-width:13rem; }
+  .fee-filters select, .fee-filters .datebox { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
   .fee-ex { margin-top:10px; font-size:12.5px; color:var(--muted); }
   .fee-ex summary { cursor:pointer; width:max-content; }
   .fee-ex ul { list-style:none; margin:8px 0 0; padding:8px 12px; background:var(--head); border-radius:var(--radius); line-height:1.7; max-height:10rem; overflow:auto; font-size:12px; }
@@ -271,6 +274,12 @@
         <div class="card-head">
           <h2>배송료 정산</h2>
           <p class="note" id="fee-note"></p>
+        </div>
+        <div class="filters fee-filters">
+          <div class="f"><label for="fee-sel">정산 기간</label><select id="fee-sel"></select></div>
+          <div class="f fee-custom" hidden><label for="fee-from">시작일</label><span class="datebox"><span id="fee-from-text"></span><input type="date" id="fee-from" aria-label="배송료 시작일"></span></div>
+          <span class="tilde fee-custom" hidden>~</span>
+          <div class="f fee-custom" hidden><label for="fee-to">종료일</label><span class="datebox"><span id="fee-to-text"></span><input type="date" id="fee-to" aria-label="배송료 종료일"></span></div>
         </div>
         <div class="fee-grid">
           <div class="fee-cell"><span class="k">정산 기간</span><span class="v" id="fee-period"></span></div>
@@ -421,21 +430,8 @@
     }));
     $('s-q').value = ''; $('s-status').value = ''; filterStock();
 
-    const F = D.fee;
-    $('fee-card').hidden = !F;
-    if (F) {
-      const md = (x) => x.slice(5).replace('-', '/');
-      $('fee-note').textContent = `${md(D.asof)} 출고분까지 집계`;
-      $('fee-period').textContent = `${md(F.from)} ~ ${md(F.to)}`;
-      $('fee-qty').textContent = `${fmt(F.qty)}${F.unit}`;
-      $('fee-price-k').textContent = `${F.unit}당 배송료`;
-      $('fee-price').textContent = `${F.price.toLocaleString('ko-KR')}원`;
-      $('fee-total').textContent = fmt(F.total);
-      const ex = F.excluded.map((e) => el('li', '', `${md(e['일자'])} ${e['점포'] ? e['점포'] + ' · ' : ''}${e['품목']} ${fmt(e['수량'])}${e['단위']} — ${e['사유']}`));
-      $('fee-exbox').hidden = !ex.length;
-      $('fee-ex-sum').textContent = `합계에서 제외한 출고 ${ex.length}건 보기`;
-      $('fee-ex').replaceChildren(...ex);
-    }
+    $('fee-card').hidden = !D.fee;
+    if (D.fee) setupFee();
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
     $('f-kind').value = ''; $('f-item').value = '';
@@ -455,6 +451,57 @@
   }
   $('s-q').addEventListener('input', filterStock);
   $('s-status').addEventListener('change', filterStock);
+
+  // ---------- 배송료 정산 ----------
+  const lastDay = (y, m) => new Date(y, m + 1, 0).getDate();
+  function periodOf(cycle, ds) {
+    const d = new Date(ds + 'T00:00:00'), y = d.getFullYear(), m = d.getMonth();
+    if (cycle === 'half') return d.getDate() <= 15 ? [iso(new Date(y, m, 1)), iso(new Date(y, m, 15))] : [iso(new Date(y, m, 16)), iso(new Date(y, m, lastDay(y, m)))];
+    if (cycle === 'week') { const mon = new Date(y, m, d.getDate() - ((d.getDay() + 6) % 7)); return [iso(mon), iso(new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + 5))]; }
+    return [iso(new Date(y, m, 1)), iso(new Date(y, m, lastDay(y, m)))];
+  }
+  function periodLabel(cycle, a, b) {
+    const [ya, ma, da] = a.split('-').map(Number), [, mb, db] = b.split('-').map(Number);
+    if (cycle === 'month') return `${ya}년 ${ma}월`;
+    if (cycle === 'half') return `${ya}년 ${ma}월 ${da}일 ~ ${db}일`;
+    return `${ma}/${da}(월) ~ ${mb}/${db}(토)`;
+  }
+  function setupFee() {
+    const F = D.fee, opts = [];
+    let [a, b] = periodOf(F.cycle, D.asof);
+    const first = F.lines.length ? F.lines[0].d : a;
+    while (b >= first && opts.length < 60) {
+      opts.push([a + '|' + b, periodLabel(F.cycle, a, b) + (opts.length ? '' : ' (현재)')]);
+      const prev = new Date(a + 'T00:00:00'); prev.setDate(prev.getDate() - (F.cycle === 'week' ? 2 : 1));
+      [a, b] = periodOf(F.cycle, iso(prev));
+    }
+    $('fee-sel').replaceChildren(...opts.map(([v, t]) => new Option(t, v)), new Option('기간 직접 선택', 'custom'));
+    $('fee-sel').value = opts[0][0];
+    $('fee-from').value = F.from; $('fee-to').value = F.to;
+    renderFee();
+  }
+  function renderFee() {
+    const F = D.fee, v = $('fee-sel').value, custom = v === 'custom';
+    document.querySelectorAll('.fee-custom').forEach((x) => { x.hidden = !custom; });
+    let [a, b] = custom ? [$('fee-from').value, $('fee-to').value] : v.split('|');
+    if (custom && a && b && a > b) [a, b] = [b, a];
+    $('fee-from-text').textContent = $('fee-from').value || '-'; $('fee-to-text').textContent = $('fee-to').value || '-';
+    const md = (x) => (x ? x.slice(5).replace('-', '/') : '');
+    const inR = F.lines.filter((x) => (!a || x.d >= a) && (!b || x.d <= b));
+    const used = inR.filter((x) => !x.x), ex = inR.filter((x) => x.x);
+    const qty = used.reduce((t, x) => t + x.q, 0), total = used.reduce((t, x) => t + x.a, 0);
+    $('fee-period').textContent = a && b ? `${md(a)} ~ ${md(b)}` : '-';
+    $('fee-qty').textContent = `${fmt(qty)}${F.unit}`;
+    $('fee-price-k').textContent = `${F.unit}당 배송료`;
+    $('fee-price').textContent = `${F.price.toLocaleString('ko-KR')}원`;
+    $('fee-total').textContent = fmt(Math.round(total));
+    $('fee-note').textContent = b && b >= D.asof ? `${md(D.asof)} 출고분까지 집계` : '';
+    $('fee-exbox').hidden = !ex.length;
+    $('fee-ex-sum').textContent = `합계에서 제외한 출고 ${ex.length}건 보기`;
+    $('fee-ex').replaceChildren(...ex.map((e) => el('li', '', `${md(e.d)} ${e.s ? e.s + ' · ' : ''}${e.i ? e.i + ' ' : ''}${fmt(e.q)}${e.u || F.unit} — ${e.x}`)));
+  }
+  $('fee-sel').addEventListener('change', renderFee);
+  ['fee-from', 'fee-to'].forEach((id) => { $(id).addEventListener('input', renderFee); $(id).addEventListener('change', renderFee); });
 
   function setRange(kind) {
     const end = new Date(D.asof + 'T00:00:00');

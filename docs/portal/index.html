@@ -73,6 +73,8 @@
   .value { font-size:2.1rem; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
   .value small { font-size:14px; font-weight:400; color:var(--muted); margin-left:4px; }
   .names { font-weight:600; font-size:1.02rem; line-height:1.65; white-space:pre-line; }
+  .more { margin:0; font-size:11.5px; color:var(--faint); }
+  .alert .names { max-height:calc(1.65em * 5); overflow-y:auto; overscroll-behavior:contain; padding-right:4px; scrollbar-width:thin; }
   .tag { display:none; font-size:11.5px; font-weight:700; padding:2px 8px; border-radius:4px; }
   .alert:not(.on) .names { font-weight:400; color:var(--faint); font-size:14px; }
   .alert.warn { --tone:var(--warn); --soft:var(--warn-soft); }
@@ -300,12 +302,12 @@
         <div class="tile alert warn" id="t-low-tile">
           <div class="tile-top"><p class="tile-title">품절 예정</p><span class="tag">확인 필요</span></div>
           <p class="tile-sub" id="t-low-sub">재고 <span id="t-low-n"></span>박스 미만 품목</p>
-          <div class="names" id="t-low"></div>
+          <div class="names" id="t-low"></div><p class="more" id="t-low-more" hidden></p>
         </div>
         <div class="tile alert bad" id="t-out-tile">
           <div class="tile-top"><p class="tile-title">품절</p><span class="tag">재고 없음</span></div>
           <p class="tile-sub">재고가 0인 품목</p>
-          <div class="names" id="t-out"></div>
+          <div class="names" id="t-out"></div><p class="more" id="t-out-more" hidden></p>
         </div>
       </section>
 
@@ -540,6 +542,11 @@
     const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
     $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
     $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);
+    for (const [id, list] of [['t-low', low], ['t-out', out]]) {   // 5줄 넘으면 목록 안에서 스크롤, 아래에 개수 안내
+      $(id).scrollTop = 0;
+      const more = list.length > 5;
+      $(id + '-more').hidden = !more; $(id + '-more').textContent = `총 ${list.length}개 · 스크롤해서 더 보기`;
+    }
 
     const chip = { '여유': 'ok', '품절 예정': 'warn', '곧 소진': 'warn', '품절': 'bad' };
     $('stock-body').replaceChildren(...D.stock.map((s) => {

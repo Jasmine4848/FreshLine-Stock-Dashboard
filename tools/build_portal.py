@@ -8,7 +8,7 @@
 - 고객사마다 데이터를 비밀번호로 암호화(AES-GCM, PBKDF2-SHA256)해 <아이디 해시>.json 으로 저장한다.
 - 재고 계산은 각 엑셀의 입출고현황 수식과 같은 방식: 기초재고(시작일 기준) + 시작일 이후 입고 − 출고 (+ 조정).
 """
-import sys, os, json, base64, hashlib, secrets, datetime as dt
+import sys, os, json, base64, hashlib, secrets, math, datetime as dt
 from zoneinfo import ZoneInfo
 import openpyxl
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -235,12 +235,14 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
         fixed = '모회사 출고' if '금산' in store else ('재고 조정' if '조정' in store.replace(' ', '') else None)
         why = fixed or next((w for w in FEE_SKIP if w in memo), None)
         if why and not fixed and any(k in memo for k in FEE_KEEP): why = None
+        if why and any(x.get('일자') == r['일자'] and x.get('품목') == r['품목'] for x in f.get('force_include', [])): why = None   # 사용자가 넣으라고 한 건
         if why:
             excluded.append({'일자': r['일자'], '점포': store, '품목': r['품목'], '수량': r['수량'], '단위': r['단위'], '사유': why if fixed else memo}); continue
         if f.get('unit', '박스') == '박스':
             if r['단위'] == '박스': n = r['수량']
             elif per.get(r['품목']): n = r['수량'] / per[r['품목']]
             else: unknown.append(r['품목']); continue
+            n = math.ceil(n - 1e-9)                # 0.6박스처럼 나누어떨어지지 않는 출고도 1박스로 계산
         else:
             n = r['수량']                       # 팩 단위 요금(열문집)
         boxes += n; total += n * f['price']

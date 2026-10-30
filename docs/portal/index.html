@@ -664,7 +664,7 @@
     $('fee-note').textContent = b && b >= D.asof ? `${md(D.asof)} 출고분까지 집계` : '';
     $('fee-exbox').hidden = !ex.length;
     $('fee-ex-sum').textContent = `합계에서 제외한 출고 ${ex.length}건 보기`;
-    $('fee-ex').replaceChildren(...ex.map((e) => el('li', '', `${md(e.d)} ${e.s ? e.s + ' · ' : ''}${e.i ? e.i + ' ' : ''}${fmt(e.q)}${e.u || F.unit} — ${e.x}`)));
+    $('fee-ex').replaceChildren(...ex.map((e) => el('li', '', `${md(e.d)} ${e.s ? e.s + ' · ' : ''}${e.i ? e.i + ' ' : ''}${fmt(e.q)}${e.u || F.unit}${e.x === '모회사 출고' ? '' : ' — ' + e.x}`)));   // 모회사 출고는 사유를 고객사 화면에 쓰지 않는다
   }
   $('fee-sel').addEventListener('change', renderFee);
   ['fee-from', 'fee-to'].forEach((id) => { $(id).addEventListener('input', renderFee); $(id).addEventListener('change', renderFee); });

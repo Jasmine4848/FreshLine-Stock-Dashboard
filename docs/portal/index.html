@@ -132,6 +132,18 @@
   .sum b { color:var(--fg); font-size:15px; white-space:nowrap; }
   .sum.in b { color:var(--in); }
   .sum.out b { color:var(--out); }
+  .ledger-head { align-items:flex-start; margin-bottom:12px; }
+  .ledger-head h2 { margin-bottom:4px; }
+  .fee { min-width:15rem; max-width:24rem; border:1px solid var(--line); border-radius:var(--radius); background:var(--head); padding:10px 14px; display:grid; gap:2px; }
+  .fee-top { display:flex; justify-content:space-between; gap:12px; font-size:12px; color:var(--muted); }
+  .fee-label { font-weight:700; }
+  .fee-period { font-variant-numeric:tabular-nums; }
+  .fee-amt { font-size:1.45rem; font-weight:700; font-variant-numeric:tabular-nums; text-align:right; }
+  .fee-amt small { font-size:13px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .fee-calc { font-size:12px; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
+  .fee-ex { list-style:none; margin:6px 0 0; padding:6px 0 0; border-top:1px dashed var(--line-strong); font-size:11.5px; color:var(--faint); line-height:1.55; max-height:7.5rem; overflow:auto; }
+  .fee-ex:empty { display:none; }
+  .fee-ex li:first-child { color:var(--muted); font-weight:700; }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
   .ledger th { position:sticky; top:0; z-index:1; }
@@ -178,6 +190,7 @@
     .filters input[type=search] { width:100%; min-width:0; }
     .tilde { display:none; }
     .toolbar .btn { width:100%; }
+    .fee { width:100%; max-width:none; }
     .sums { width:100%; } .sum { flex:1; justify-content:center; padding:8px 6px; }
   }
 </style>
@@ -258,9 +271,14 @@
       </section>
 
       <section class="card">
-        <div class="card-head">
-          <h2>입출고 상세 내역</h2>
-          <p class="note">선택한 조건이 표와 엑셀 파일에 함께 적용됩니다.</p>
+        <div class="card-head ledger-head">
+          <div><h2>입출고 상세 내역</h2><p class="note">선택한 조건이 표와 엑셀 파일에 함께 적용됩니다.</p></div>
+          <div class="fee" id="fee" hidden>
+            <div class="fee-top"><span class="fee-label">배송료 합계</span><span class="fee-period" id="fee-period"></span></div>
+            <div class="fee-amt"><span id="fee-total"></span><small>원</small></div>
+            <div class="fee-calc" id="fee-calc"></div>
+            <ul class="fee-ex" id="fee-ex"></ul>
+          </div>
         </div>
         <div class="toolbar">
           <div class="quick" role="group" aria-label="빠른 기간 선택">
@@ -397,6 +415,16 @@
     }));
     $('s-q').value = ''; $('s-status').value = ''; filterStock();
 
+    const F = D.fee;
+    $('fee').hidden = !F;
+    if (F) {
+      const md = (x) => x.slice(5).replace('-', '/');
+      $('fee-period').textContent = `정산 기간 ${F.from} ~ ${F.to}`;
+      $('fee-total').textContent = fmt(F.total);
+      $('fee-calc').textContent = `${fmt(F.qty)}${F.unit} × ${F.price.toLocaleString('ko-KR')}원 · ${md(D.asof)} 출고분까지`;
+      const ex = F.excluded.map((e) => el('li', '', `${md(e['일자'])} ${e['점포'] ? e['점포'] + ' ' : ''}${e['품목']} ${fmt(e['수량'])}${e['단위']} – ${e['사유']}`));
+      $('fee-ex').replaceChildren(...(ex.length ? [el('li', '', `합계에서 제외 ${ex.length}건`), ...ex] : []));
+    }
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
     $('f-kind').value = ''; $('f-item').value = '';

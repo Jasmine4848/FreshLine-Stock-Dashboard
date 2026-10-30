@@ -148,7 +148,7 @@ LOADERS = {'standard': load_standard, 'pack_info': load_pack_info, 'brand_pack':
 
 
 # ---------- 계산 ----------
-def build(cfg, base_dir):
+def build(cfg, base_dir, with_items=False):
     wb = openpyxl.load_workbook(os.path.join(base_dir, cfg['file']), data_only=True)
     items, rows = LOADERS[cfg['kind']](wb, cfg)
     nb = cfg.get('no_box')                     # 박스 환산 없이 낱개로만 표시: true(전체) 또는 품목 목록
@@ -175,7 +175,77 @@ def build(cfg, base_dir):
         measure = boxes if boxes is not None else q      # 박스로 못 바꾸는 품목은 낱개 수량 그대로
         status = '품절' if q <= 0 else ('품절 예정' if measure < LOW_BOX else '여유')   # 5박스(낱개 품목은 5개) 미만
         stock.append({'품목': n, '브랜드': it.get('브랜드', ''), '수량': q, '단위': it['단위'], '입수': it['입수'], '소진주': weeks, '상태': status})
+    if with_items: return asof, stock, rows, items
     return asof, stock, rows
+
+
+# ---------- 배송료 ----------
+FEE_SKIP = ('특판', '오배송', '오출고', '폐기')           # 비고에 있으면 배송료에서 제외
+FEE_KEEP = ('재배송', '재출고', '교환')           # 단, 이 말이 함께 있으면 포함
+def fee_period(cycle, asof):
+    d = dt.date.fromisoformat(asof)
+    if cycle == 'half':                         # 1~15일, 16일~말일
+        last = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+        return (d.replace(day=1), d.replace(day=15)) if d.day <= 15 else (d.replace(day=16), last)
+    if cycle == 'week':                         # 월~토
+        mon = d - dt.timedelta(days=d.weekday())
+        return mon, mon + dt.timedelta(days=5)
+    last = (d.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+    return d.replace(day=1), last
+
+def fee_from_sheet(f, a, b, base_dir):
+    """배송현황 파일(합포장 등을 반영해 따로 관리하는 파일)에서 배송료 계산.
+    box_list: '전체' 시트 B 일자, C 거래처, D 출고수량 → 수량 × 단가
+    line_amount: '전체' 시트 B 출고유형, C 일자, D 거래처, E 품목, F 박스, J 총 합계금액 → 금액 합계 (출고유형 '특판' 포함 행 제외)"""
+    src = f['source']
+    wb = openpyxl.load_workbook(os.path.join(base_dir, src['file']), data_only=True, read_only=True)
+    ws = wb['전체']
+    inside = lambda v: isinstance(v, dt.datetime) and a <= v.date() <= b
+    total, qty, excluded = 0.0, 0.0, []
+    if src['kind'] == 'box_list':
+        for r in ws.iter_rows(min_row=2, max_col=5, values_only=True):
+            if not inside(r[1]) or not isinstance(r[3], (int, float)): continue
+            if '금산' in str(r[2] or ''):
+                excluded.append({'일자': r[1].date().isoformat(), '점포': str(r[2]), '품목': '', '수량': r[3], '단위': '박스', '사유': '모회사 출고'}); continue
+            qty += r[3]; total += r[3] * f['price']
+    else:
+        for r in ws.iter_rows(min_row=2, max_col=10, values_only=True):
+            if not inside(r[2]) or not isinstance(r[9], (int, float)): continue
+            if '특판' in str(r[1] or ''):
+                excluded.append({'일자': r[2].date().isoformat(), '점포': str(r[3] or ''), '품목': str(r[4] or ''), '수량': r[5] or 0, '단위': '박스', '사유': '특판'}); continue
+            qty += r[5] or 0; total += r[9]
+    wb.close()
+    excluded.sort(key=lambda e: e['일자'])
+    return {'from': a.isoformat(), 'to': b.isoformat(), 'price': f['price'], 'unit': '박스',
+            'qty': round(qty, 2), 'total': round(total), 'excluded': excluded, 'unknown': []}
+
+def fee_summary(cfg, items, rows, asof, base_dir=''):
+    f = cfg.get('fee')
+    if not f: return None
+    a, b = fee_period(f.get('cycle', 'month'), asof)
+    if f.get('source'):
+        try: return fee_from_sheet(f, a, b, base_dir)
+        except Exception as e:
+            print(cfg['id'], '배송현황 파일을 못 읽어 배송료 생략:', e); return None
+    per = {it['품목']: it['입수'] for it in items}
+    total, boxes, excluded, unknown = 0.0, 0.0, [], []
+    for r in rows:
+        if r['구분'] != '출고' or not (a.isoformat() <= r['일자'] <= b.isoformat()): continue
+        memo, store = r['비고'] or '', r['점포'] or ''
+        fixed = '모회사 출고' if '금산' in store else ('재고 조정' if '조정' in store.replace(' ', '') else None)
+        why = fixed or next((w for w in FEE_SKIP if w in memo), None)
+        if why and not fixed and any(k in memo for k in FEE_KEEP): why = None
+        if why:
+            excluded.append({'일자': r['일자'], '점포': store, '품목': r['품목'], '수량': r['수량'], '단위': r['단위'], '사유': why if fixed else memo}); continue
+        if f.get('unit', '박스') == '박스':
+            if r['단위'] == '박스': n = r['수량']
+            elif per.get(r['품목']): n = r['수량'] / per[r['품목']]
+            else: unknown.append(r['품목']); continue
+        else:
+            n = r['수량']                       # 팩 단위 요금(열문집)
+        boxes += n; total += n * f['price']
+    return {'from': a.isoformat(), 'to': b.isoformat(), 'price': f['price'], 'unit': f.get('unit', '박스'),
+            'qty': round(boxes, 2), 'total': round(total), 'excluded': excluded, 'unknown': sorted(set(unknown))}
 
 def encrypt(payload, password):
     salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
@@ -195,12 +265,12 @@ def main(base_dir, cfg_file, out_dir, only=None):
         if cfg['id'] not in pws:
             results.append((cfg['id'], '비밀번호 없음 - 건너뜀')); continue
         try:
-            asof, stock, rows = build(cfg, base_dir)
+            asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows, 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         json.dump(encrypt(payload, pws[cfg['id']]), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
-        results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock]))
+        results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))
     for r in results: print(r)
     return results
 

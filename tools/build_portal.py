@@ -211,7 +211,7 @@ def fee_from_sheet(f, a, b, base_dir):
     else:
         for r in ws.iter_rows(min_row=2, max_col=10, values_only=True):
             if not inside(r[2]) or not isinstance(r[9], (int, float)): continue
-            if '특판' in str(r[1] or ''):
+            if '특판' in str(r[1] or '') and not src.get('include_special'):
                 excluded.append({'일자': r[2].date().isoformat(), '점포': str(r[3] or ''), '품목': str(r[4] or ''), '수량': r[5] or 0, '단위': '박스', '사유': '특판'}); continue
             qty += r[5] or 0; total += r[9]
     wb.close()

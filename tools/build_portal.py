@@ -77,12 +77,13 @@ def load_pack_info(wb, cfg):
         n = s(pi.cell(r, 3).value)
         if n: per[n] = (int(num(pi.cell(r, 7).value)) or None, s(pi.cell(r, 9).value) == '운영 중단')
     items = []
-    for r in range(8, st.max_row + 1):
+    for r in range(5, st.max_row + 1):          # 위쪽 머리글 줄 수가 바뀌어도 되도록 품목정보에 있는 이름만 읽는다
         n = s(st.cell(r, 2).value)
-        if not n or n == '합계': break
-        p, stopped = per.get(n, (None, False))
-        if stopped: continue
-        items.append({'품목': n, '단위': '팩', '입수': p, '기초': num(st.cell(r, 5).value)})
+        if n == '합계': break
+        if n not in per: continue
+        p, stopped = per[n]
+        # 운영 중단 품목은 재고표에는 안 보이지만, 배송료(박스 환산) 계산에는 입수가 필요해서 목록에는 남긴다
+        items.append({'품목': n, '단위': '팩', '입수': p, '기초': num(st.cell(r, 5).value), '중단': stopped})
     rows = []
     for r in wb['입고내역'].iter_rows(min_row=2, max_col=5, values_only=True):
         if not d(r[0]) or not s(r[1]): continue
@@ -172,7 +173,7 @@ def build(cfg, base_dir, with_items=False):
     stock = []
     hide = set(cfg.get('hide_items') or [])   # 운영 중단 품목: 재고표에서만 빼고 입출고 내역은 그대로 둔다
     for it in items:
-        if it['품목'] in hide: continue
+        if it['품목'] in hide or it.get('중단'): continue
         n = it['품목']
         mine = [r for r in rows if r['품목'] == n and r['일자'] >= start]
         q = it['기초'] + sum(r['수량'] for r in mine if r['구분'] == '입고') - sum(r['수량'] for r in mine if r['구분'] == '출고') + sum(r['수량'] for r in mine if r['구분'] == '조정')

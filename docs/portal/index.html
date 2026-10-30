@@ -469,8 +469,8 @@
   function setupFee() {
     const F = D.fee, opts = [];
     let [a, b] = periodOf(F.cycle, D.asof);
-    const first = F.lines.length ? F.lines[0].d : a;
-    while (b >= first && opts.length < 60) {
+    const FEE_FROM = '2026-10-01';   // 목록에는 2026년 10월분부터만 보여 준다(그 이전은 '기간 직접 선택'으로)
+    while (b >= FEE_FROM && opts.length < 200) {
       opts.push([a + '|' + b, periodLabel(F.cycle, a, b) + (opts.length ? '' : ' (현재)')]);
       const prev = new Date(a + 'T00:00:00'); prev.setDate(prev.getDate() - (F.cycle === 'week' ? 2 : 1));
       [a, b] = periodOf(F.cycle, iso(prev));

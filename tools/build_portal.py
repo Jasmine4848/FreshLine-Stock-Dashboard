@@ -17,10 +17,17 @@ from cryptography.hazmat.primitives import hashes
 
 ITER = 310000
 LOW_BOX = 5      # 품절 예정: 박스 환산 5박스 미만 (박스로 못 바꾸는 품목은 기본 단위 5 미만)
-ROWS_FROM = '2026-10-01'   # 화면의 입출고 상세 내역은 이 날짜부터만 보낸다(이전 정산분 제외). 재고 계산에는 전체 기간을 쓴다
+ROWS_FROM = '2026-10-01'   # 화면의 입출고 상세 내역·배송료 정산은 이 날짜부터만 보낸다(이전 정산분 제외). 재고 계산에는 전체 기간을 쓴다
+# 고객사별 조회 시작일 (엑셀 경로 또는 화면 이름에 이 말이 있으면 적용). 설정 파일에 "rows_from" 이 있으면 그 값이 우선
+ROWS_FROM_BY_CLIENT = {'두투미': '2026-10-26', '곱창이야기': '2026-10-16'}
 TH_WEEKS = 2     # (사용 안 함) 예전 출고 속도 기준
 UNIT = {'BOX': '박스', 'PK': '팩', 'EA': '개'}
 
+
+def rows_from(cfg):
+    if cfg.get('rows_from'): return cfg['rows_from']
+    where = str(cfg.get('file', '')) + ' ' + str(cfg.get('name', ''))
+    return next((v for k, v in ROWS_FROM_BY_CLIENT.items() if k in where), ROWS_FROM)
 
 def id_hash(cid):
     return hashlib.sha256(('freshline-portal:' + cid.strip()).encode('utf-8')).hexdigest()[:24]
@@ -247,8 +254,10 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
             print(cfg['id'], '배송현황 파일을 못 읽어 배송료 생략:', e); return None
     else:
         lines = fee_lines_ledger(f, items, rows)
-    lines.sort(key=lambda x: x['d'])
+    rf = rows_from(cfg)
+    lines = sorted((x for x in lines if x['d'] >= rf), key=lambda x: x['d'])   # 조회 시작일 이전 출고는 정산에서 뺀다
     a, b = fee_period(f.get('cycle', 'month'), asof)
+    a = max(a, dt.date.fromisoformat(rf))
     cur = [x for x in lines if a.isoformat() <= x['d'] <= b.isoformat()]
     unit = f.get('unit', '박스') if not f.get('source') else '박스'
     return {'cycle': f.get('cycle', 'month'), 'price': f['price'], 'unit': unit, 'from': a.isoformat(), 'to': b.isoformat(),
@@ -280,7 +289,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': [r for r in rows if r['일자'] >= ROWS_FROM], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [r for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))

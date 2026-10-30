@@ -354,7 +354,7 @@
       <section class="card">
         <div class="card-head">
           <h2>입출고 상세 내역</h2>
-          <p class="note">2026년 10월 1일부터 조회 가능</p>
+          <p class="note" id="rows-from-note">2026년 10월 1일부터 조회 가능</p>
         </div>
         <div class="toolbar">
           <div class="quick" role="group" aria-label="빠른 기간 선택">
@@ -581,6 +581,8 @@
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
     $('f-kind').value = ''; $('f-item').value = '';
+    const [fy, fm, fd] = (D.from || '2026-10-01').split('-').map(Number);
+    $('rows-from-note').textContent = `${fy}년 ${fm}월 ${fd}일부터 조회 가능`;
     setRange('this');
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
   }
@@ -631,7 +633,7 @@
   function setupFee() {
     const F = D.fee, opts = [];
     let [a, b] = periodOf(F.cycle, D.asof);
-    const FEE_FROM = '2026-10-01';   // 목록에는 2026년 10월분부터만 보여 준다(그 이전은 '기간 직접 선택'으로)
+    const FEE_FROM = D.from || '2026-10-01';   // 목록에는 조회 시작일이 들어 있는 기간부터만 보여 준다
     while (b >= FEE_FROM && opts.length < 200) {
       opts.push([a + '|' + b, periodLabel(F.cycle, a, b) + (opts.length ? '' : ' (현재)')]);
       const prev = new Date(a + 'T00:00:00'); prev.setDate(prev.getDate() - (F.cycle === 'week' ? 2 : 1));
@@ -647,6 +649,8 @@
     document.querySelectorAll('.fee-custom').forEach((x) => { x.hidden = !custom; });
     let [a, b] = custom ? [$('fee-from').value, $('fee-to').value] : v.split('|');
     if (custom && a && b && a > b) [a, b] = [b, a];
+    const START = D.from || '2026-10-01';   // 조회 시작일 이전은 정산하지 않는다
+    if (!a || a < START) a = START;
     $('fee-from-text').textContent = $('fee-from').value || '-'; $('fee-to-text').textContent = $('fee-to').value || '-';
     const md = (x) => (x ? x.slice(5).replace('-', '/') : '');
     const inR = F.lines.filter((x) => (!a || x.d >= a) && (!b || x.d <= b));
@@ -676,7 +680,7 @@
     if (kind === 'last') { from = iso(new Date(end.getFullYear(), end.getMonth() - 1, 1)); to = iso(new Date(end.getFullYear(), end.getMonth(), 0)); }
     if (kind === '3m') from = iso(new Date(end.getFullYear(), end.getMonth() - 2, 1));
     if (kind === 'all') { from = D.rows.length ? D.rows[0]['일자'] : ''; }
-    const MIN = D.rows.length ? D.rows[0]['일자'] : '';
+    const MIN = D.from || (D.rows.length ? D.rows[0]['일자'] : '');
     // 지난 달이 통째로 10/1 이전이면(이미 정산 끝난 기간) 버튼을 잠근다
     const lastEnd = iso(new Date(end.getFullYear(), end.getMonth(), 0));
     document.querySelector('.quick [data-range=last]').disabled = !!MIN && lastEnd < MIN;

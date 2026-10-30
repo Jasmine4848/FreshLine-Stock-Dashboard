@@ -254,8 +254,10 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
             'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
             'unknown': [], 'lines': lines}
 
-def encrypt(payload, password):
-    salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
+def encrypt(payload, password, cid=''):
+    # salt 는 고객사마다 고정: 데이터가 매일 바뀌어도 같은 키가 나와서, 브라우저 탭에 로그인 상태를 유지할 수 있다
+    salt = hashlib.sha256(('freshline-salt:' + cid.strip()).encode('utf-8')).digest()[:16] if cid else secrets.token_bytes(16)
+    iv = secrets.token_bytes(12)
     key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=ITER).derive(password.encode('utf-8'))
     ct = AESGCM(key).encrypt(iv, json.dumps(payload, ensure_ascii=False).encode('utf-8'), None)
     b = lambda x: base64.b64encode(x).decode()
@@ -276,7 +278,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows, 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
-        json.dump(encrypt(payload, pws[cfg['id']]), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
+        json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))
     for r in results: print(r)
     return results

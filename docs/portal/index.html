@@ -342,21 +342,32 @@
     const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('freshline-portal:' + cid.trim()));
     return hex(h).slice(0, 24);
   }
-  async function decrypt(blob, pw) {
+  const SKEY = 'freshline-portal-session';
+  const toB64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
+  async function keyFromPw(blob, pw) {
     const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
-    const key = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(blob.salt), iterations: blob.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(blob.salt), iterations: blob.iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+  }
+  async function decryptWith(blob, key) {
     const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64(blob.iv) }, key, b64(blob.ct));
     return JSON.parse(new TextDecoder().decode(pt));
   }
+  // 같은 탭에서는 새로고침해도 로그인 유지(탭을 닫거나 로그아웃하면 지워짐). 비밀번호는 저장하지 않는다.
+  function saveSession(v) { try { v ? sessionStorage.setItem(SKEY, JSON.stringify(v)) : sessionStorage.removeItem(SKEY); } catch (_) {} }
+  function loadSession() { try { return JSON.parse(sessionStorage.getItem(SKEY) || 'null'); } catch (_) { return null; } }
 
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('login-btn'); const err = $('login-err');
     err.textContent = ''; btn.disabled = true; btn.textContent = '확인 중…';
     try {
-      const res = await fetch(`data/${await idHash($('cid').value)}.json`, { cache: 'no-store' });
+      const h = await idHash($('cid').value);
+      const res = await fetch(`data/${h}.json`, { cache: 'no-store' });
       if (!res.ok) throw new Error('no');
-      D = await decrypt(await res.json(), $('pw').value);
+      const blob = await res.json();
+      const key = await keyFromPw(blob, $('pw').value);
+      D = await decryptWith(blob, key);
+      saveSession({ h, salt: blob.salt, k: toB64(await crypto.subtle.exportKey('raw', key)) });
       $('pw').value = '';
       show();
     } catch (_) {
@@ -364,7 +375,22 @@
     } finally { btn.disabled = false; btn.textContent = '조회하기'; }
   });
 
+  (async () => {
+    const ss = loadSession();
+    if (!ss) return;
+    try {
+      const res = await fetch(`data/${ss.h}.json`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('no');
+      const blob = await res.json();
+      if (blob.salt !== ss.salt) throw new Error('changed');
+      const key = await crypto.subtle.importKey('raw', b64(ss.k), { name: 'AES-GCM' }, false, ['decrypt']);
+      D = await decryptWith(blob, key);
+      show();
+    } catch (_) { saveSession(null); }
+  })();
+
   $('logout').addEventListener('click', () => {
+    saveSession(null);
     D = null; $('stock-body').replaceChildren(); $('ledger-body').replaceChildren(); $('sums').replaceChildren();
     $('dash-view').hidden = true; $('login-view').hidden = false; $('cid').value = ''; $('pw').value = '';
     document.title = '(주)프레시라인 재고 조회';

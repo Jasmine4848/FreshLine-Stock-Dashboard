@@ -17,6 +17,7 @@ from cryptography.hazmat.primitives import hashes
 
 ITER = 310000
 LOW_BOX = 5      # 품절 예정: 박스 환산 5박스 미만 (박스로 못 바꾸는 품목은 기본 단위 5 미만)
+ROWS_FROM = '2026-10-01'   # 화면의 입출고 상세 내역은 이 날짜부터만 보낸다(이전 정산분 제외). 재고 계산에는 전체 기간을 쓴다
 TH_WEEKS = 2     # (사용 안 함) 예전 출고 속도 기준
 UNIT = {'BOX': '박스', 'PK': '팩', 'EA': '개'}
 
@@ -279,7 +280,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': rows, 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'rows': [r for r in rows if r['일자'] >= ROWS_FROM], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))

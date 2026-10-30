@@ -109,6 +109,7 @@
   .quick button { border:0; border-right:1px solid var(--line-strong); background:var(--panel); color:var(--muted); padding:7px 14px; font-size:13px; cursor:pointer; }
   .quick button:last-child { border-right:0; }
   .quick button:hover { background:var(--hover); color:var(--fg); }
+  .quick button:disabled { opacity:.4; cursor:default; background:var(--panel); }
   .quick button[aria-pressed=true] { background:var(--accent); color:#fff; font-weight:700; }
   .filters { display:flex; flex-wrap:wrap; gap:10px 12px; align-items:flex-end; }
   .filters .f { display:grid; gap:5px; }
@@ -671,6 +672,12 @@
     if (kind === 'last') { from = iso(new Date(end.getFullYear(), end.getMonth() - 1, 1)); to = iso(new Date(end.getFullYear(), end.getMonth(), 0)); }
     if (kind === '3m') from = iso(new Date(end.getFullYear(), end.getMonth() - 2, 1));
     if (kind === 'all') { from = D.rows.length ? D.rows[0]['일자'] : ''; }
+    const MIN = D.rows.length ? D.rows[0]['일자'] : '';
+    // 지난 달이 통째로 10/1 이전이면(이미 정산 끝난 기간) 버튼을 잠근다
+    const lastEnd = iso(new Date(end.getFullYear(), end.getMonth(), 0));
+    document.querySelector('.quick [data-range=last]').disabled = !!MIN && lastEnd < MIN;
+    if (MIN && from && from < MIN) from = MIN;
+    $('f-from').min = $('f-to').min = MIN;
     $('f-from').value = from; $('f-to').value = to;
     markQuick(kind); syncDates(); renderLedger();
   }

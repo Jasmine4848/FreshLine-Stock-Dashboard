@@ -220,6 +220,14 @@
     .sums { width:100%; } .sum { flex:1; justify-content:center; padding:8px 6px; }
   }
 </style>
+<script>
+  // 새로고침 때 로그인 화면이 잠깐 보이지 않도록: 저장된 로그인이 있으면 복원하는 동안 로그인 화면을 숨긴다
+  try { if (sessionStorage.getItem('freshline-portal-session')) document.documentElement.classList.add('restoring'); } catch (_) {}
+</script>
+<style>
+  html.restoring #login-view { display:none !important; }
+  html.restoring body::after { content:"불러오는 중…"; position:fixed; inset:0; display:grid; place-items:center; color:#8b95a5; font-size:14px; }
+</style>
 </head>
 <body>
 
@@ -427,7 +435,8 @@
 
   (async () => {
     const ss = loadSession();
-    if (!ss) return;
+    const done = () => document.documentElement.classList.remove('restoring');
+    if (!ss) return done();
     try {
       const res = await fetch(`data/${ss.h}.json`, { cache: 'no-store' });
       if (!res.ok) throw new Error('no');
@@ -437,6 +446,7 @@
       D = await decryptWith(blob, key);
       route();
     } catch (_) { saveSession(null); }
+    done();
   })();
 
   let A = null;   // 관리자 데이터

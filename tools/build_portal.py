@@ -99,7 +99,8 @@ def load_pack_info(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': '입고', '점포': '', '품목': s(r[1]), '수량': num(r[3]), '단위': '팩', '비고': s(r[4])})
     for r in wb['출고내역'].iter_rows(min_row=2, max_col=6, values_only=True):
         if not d(r[0]) or not s(r[2]): continue
-        rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': '팩', '비고': s(r[5])})
+        rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': '팩', '비고': s(r[5]),
+                     '박스': num(r[3]) if isinstance(r[3], (int, float)) else None})   # 화면에는 출고를 박스로 보여 준다(D열)
     return items, rows
 
 def load_brand_pack(wb, cfg):
@@ -121,7 +122,8 @@ def load_brand_pack(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': '입고', '점포': '', '품목': s(r[1]), '수량': num(r[3]), '단위': '팩', '비고': s(r[4])})
     for r in wb['출고내역'].iter_rows(min_row=2, max_col=6, values_only=True):
         if not d(r[0]) or not s(r[2]): continue
-        rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': '팩', '비고': s(r[5])})
+        rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': '팩', '비고': s(r[5]),
+                     '박스': num(r[3]) if isinstance(r[3], (int, float)) else None})   # 화면에는 출고를 박스로 보여 준다(D열)
     return items, rows
 
 def load_pack6(wb, cfg):
@@ -274,6 +276,12 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
             'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
             'unknown': [], 'lines': lines}
 
+def show_row(r):
+    """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로)."""
+    r = dict(r); box = r.pop('박스', None)
+    if r['구분'] == '출고' and box is not None: r['수량'], r['단위'] = box, '박스'
+    return r
+
 def encrypt(payload, password, cid=''):
     # salt 는 고객사마다 고정: 데이터가 매일 바뀌어도 같은 키가 나와서, 브라우저 탭에 로그인 상태를 유지할 수 있다
     salt = hashlib.sha256(('freshline-salt:' + cid.strip()).encode('utf-8')).digest()[:16] if cid else secrets.token_bytes(16)
@@ -299,7 +307,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [r for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))

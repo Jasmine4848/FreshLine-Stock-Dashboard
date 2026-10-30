@@ -354,7 +354,7 @@
       <section class="card">
         <div class="card-head">
           <h2>입출고 상세 내역</h2>
-          <p class="note">선택한 조건이 표와 엑셀 파일에 함께 적용됩니다.</p>
+          <p class="note">2026년 10월 1일부터 조회 가능</p>
         </div>
         <div class="toolbar">
           <div class="quick" role="group" aria-label="빠른 기간 선택">
@@ -665,6 +665,10 @@
   $('fee-sel').addEventListener('change', renderFee);
   ['fee-from', 'fee-to'].forEach((id) => { $(id).addEventListener('input', renderFee); $(id).addEventListener('change', renderFee); });
 
+  document.querySelectorAll('#fee-from, #fee-to').forEach((inp) => {
+    inp.addEventListener('click', (e) => { try { inp.showPicker(); } catch (_) {} });
+  });
+
   function setRange(kind) {
     const end = new Date(D.asof + 'T00:00:00');
     let from = '', to = D.asof;
@@ -677,7 +681,6 @@
     const lastEnd = iso(new Date(end.getFullYear(), end.getMonth(), 0));
     document.querySelector('.quick [data-range=last]').disabled = !!MIN && lastEnd < MIN;
     if (MIN && from && from < MIN) from = MIN;
-    $('f-from').min = $('f-to').min = MIN;
     $('f-from').value = from; $('f-to').value = to;
     markQuick(kind); syncDates(); renderLedger();
   }

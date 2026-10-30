@@ -411,7 +411,7 @@
       const res = await fetch(`data/${h}.json`, { cache: 'no-store' });
       if (!res.ok) throw new Error('no');
       const blob = await res.json();
-      const key = await keyFromPw(blob, $('pw').value);
+      const key = await keyFromPw(blob, $('pw').value.trim());
       D = await decryptWith(blob, key);
       saveSession({ h, salt: blob.salt, k: toB64(await crypto.subtle.exportKey('raw', key)) });
       $('pw').value = '';

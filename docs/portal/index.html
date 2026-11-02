@@ -351,7 +351,7 @@
         <details class="fee-ex" id="fee-exbox"><summary id="fee-ex-sum"></summary><ul id="fee-ex"></ul></details>
       </section>
 
-      <section class="card">
+      <section class="card" id="ledger-card">
         <div class="card-head">
           <h2>입출고 상세 내역</h2>
           <p class="note" id="rows-from-note">2026년 10월 1일부터 조회 가능</p>
@@ -576,6 +576,7 @@
     }));
     $('s-q').value = ''; $('s-status').value = ''; filterStock();
 
+    $('ledger-card').hidden = !!D.stock_only;   // 재고만 보는 계정은 입출고 내역을 숨긴다
     $('fee-card').hidden = !D.fee;
     if (D.fee) setupFee();
     const items = [...new Set(D.rows.map((r) => r['품목']))];

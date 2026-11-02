@@ -308,6 +308,8 @@ def main(base_dir, cfg_file, out_dir, only=None):
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        if cfg.get('stock_only'):               # 재고만 보는 계정(예: 가맹점주): 입출고 내역·배송료는 암호화 데이터에도 넣지 않는다
+            payload.update(rows=[], fee=None, stock_only=True)
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))
         built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))
@@ -331,7 +333,7 @@ def build_admin(adm, clients, pws, built, out_dir, checked):
     """관리자 계정: 모든 고객사 데이터를 한 파일에 담는다(이번에 안 만든 고객사는 기존 파일을 풀어서 쓴다). 시험용 계정(test)은 뺀다."""
     out = []
     for c in clients:
-        if c.get('kind') == 'admin' or c.get('test') or c.get('portal') is False or c['id'] not in pws: continue
+        if c.get('kind') == 'admin' or c.get('test') or c.get('stock_only') or c.get('portal') is False or c['id'] not in pws: continue
         pl = built.get(c['id'])
         path = os.path.join(out_dir, id_hash(c['id']) + '.json')
         if pl is None and os.path.exists(path):

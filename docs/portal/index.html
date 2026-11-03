@@ -53,6 +53,7 @@
   .appbar .inner { display:flex; align-items:center; justify-content:space-between; gap:12px; height:56px; }
   .appbar .brand { font-weight:700; letter-spacing:.04em; }
   .appbar .brand span { color:var(--bar-muted); font-weight:400; margin-left:10px; letter-spacing:0; font-size:13.5px; }
+  .test-badge { display:inline-block; margin-left:10px; padding:1px 8px; border-radius:var(--radius); background:var(--warn-soft); color:var(--warn); font-size:12px; font-weight:700; letter-spacing:0; }
   .logout { background:transparent; color:var(--bar-fg); border:1px solid rgba(255,255,255,.28); border-radius:var(--radius); padding:6px 12px; font-size:13px; cursor:pointer; }
   .logout:hover { background:rgba(255,255,255,.08); }
 
@@ -262,7 +263,7 @@
 <div id="dash-view" hidden>
   <header class="appbar gutter">
     <div class="inner">
-      <div class="brand">(주)프레시라인<span id="bar-sub">고객사 재고 조회</span></div>
+      <div class="brand">(주)프레시라인<span id="bar-sub">고객사 재고 조회</span><b class="test-badge" id="test-badge" hidden>테스트 계정</b></div>
       <div class="bar-btns"><button class="logout" id="back-admin" type="button" hidden>← 전체 고객사</button><button class="logout" id="logout" type="button">로그아웃</button></div>
     </div>
   </header>
@@ -456,13 +457,16 @@
   })();
 
   let A = null;   // 관리자 데이터
+  const TEST_NAME = '프레시라인 테스트';   // 라이브 전 시험용 관리자 계정(화면 이름)
+  const isTest = () => !!A && A.name === TEST_NAME;   // 새 기능은 이 조건으로 먼저 열어 보고, 시험이 끝나면 전체에 연다
   function route() {
     if (D && D.admin) {
       A = D;
+      $('test-badge').hidden = !isTest();
       // 새로고침했을 때 보던 고객사 화면(#아이디)이 있으면 그대로 연다
       const want = decodeURIComponent(location.hash.slice(1)), i = A.clients.findIndex((c) => c.account === want);
       if (i >= 0) { history.replaceState({ client: want }, '', location.hash); openClient(i); } else showAdmin();
-    } else { A = null; show(); }
+    } else { A = null; $('test-badge').hidden = true; show(); }
   }
   function showAdmin() {
     D = null;
@@ -581,7 +585,7 @@
 
     $('ledger-card').hidden = !!D.stock_only;   // 재고만 보는 계정은 입출고 내역을 숨긴다
     $('fee-card').hidden = !D.fee;
-    $('fee-dl').hidden = !FEE_DL.includes(D.name);
+    $('fee-dl').hidden = !(isTest() || FEE_DL.includes(D.name));
     if (D.fee) setupFee();
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));

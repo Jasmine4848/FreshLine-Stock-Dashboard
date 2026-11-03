@@ -214,6 +214,35 @@ def build(cfg, base_dir, with_items=False):
     return asof, stock, rows
 
 
+# ---------- 정기 재고조사 ----------
+def stock_counts(cfg, stock, rows, items, base_dir):
+    """재고조사내역 시트에서 실사재고를 입력한 회차만 읽어, 그날 끝 대시보드 재고와 비교한다. 운영 중단 품목은 뺀다. 최신 회차가 앞."""
+    try:
+        ws = openpyxl.load_workbook(os.path.join(base_dir, cfg['file']), data_only=True)['재고조사내역']
+    except Exception:
+        return []
+    head = {s(ws.cell(4, c).value): c for c in range(1, ws.max_column + 1) if s(ws.cell(4, c).value)}
+    memo_col, date_col = head.get('비고'), head.get('조사일')
+    if not date_col: return []
+    op = {it['품목']: it['기초'] for it in items}
+    out = []
+    for r in range(6, ws.max_row + 1):
+        day = d(ws.cell(r, date_col).value)
+        if not day: continue
+        lines = []
+        for st in stock:
+            c = head.get(st['품목'])
+            real = ws.cell(r, c + 1).value if c else None
+            if not isinstance(real, (int, float)): continue
+            mine = [x for x in rows if x['품목'] == st['품목'] and cfg['start'] <= x['일자'] <= day]
+            sign = {'입고': 1, '출고': -1, '조정': 1}
+            book = round(op.get(st['품목'], 0) + sum(sign[x['구분']] * x['수량'] for x in mine), 2)
+            lines.append({'품목': st['품목'], '전산': book, '실사': real})
+        if lines:
+            out.append({'일자': day, '메모': s(ws.cell(r, memo_col).value) if memo_col else '', '품목': lines})
+    return sorted(out, key=lambda x: x['일자'], reverse=True)
+
+
 # ---------- 배송료 ----------
 FEE_SKIP = ('특판', '오배송', '오출고', '폐기')           # 비고에 있으면 배송료에서 제외
 FEE_KEEP = ('재배송', '재출고', '교환')           # 단, 이 말이 함께 있으면 포함
@@ -323,6 +352,8 @@ def main(base_dir, cfg_file, out_dir, only=None):
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        if cfg['kind'] == 'pack_ledger' and not cfg.get('stock_only'):
+            payload['count'] = stock_counts(cfg, stock, rows, items, base_dir)
         if cfg.get('stock_only'):               # 재고만 보는 계정(예: 가맹점주): 입출고 내역·배송료는 암호화 데이터에도 넣지 않는다
             payload.update(rows=[], fee=None, stock_only=True)
         json.dump(encrypt(payload, pws[cfg['id']], cfg['id']), open(os.path.join(out_dir, id_hash(cfg['id']) + '.json'), 'w'))

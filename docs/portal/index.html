@@ -151,6 +151,22 @@
   .fee-cell.total { background:var(--accent-soft); }
   .fee-cell.total .v { font-size:1.5rem; font-weight:700; color:var(--accent); }
   .fee-cell .v small { font-size:13px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .stock-tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:-4px 0 12px; overflow-x:auto; }
+  .stock-tabs button { border:0; background:none; padding:10px 16px; font-size:1.02rem; font-weight:700; color:var(--muted); border-bottom:3px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
+  .stock-tabs button[aria-selected=true] { color:var(--accent); border-bottom-color:var(--accent); }
+  .count-sum { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 12px; padding:13px 16px; border:1px solid var(--line); border-radius:var(--radius); margin:0 0 12px; background:var(--warn-soft); color:var(--warn); }
+  .count-sum.good { background:var(--ok-soft); color:var(--ok); }
+  .count-sum b { font-size:1.1rem; } .count-sum span { font-size:13.5px; font-weight:700; }
+  .count-memo { margin:12px 0 0; padding:10px 14px; background:var(--head); border-radius:var(--radius); font-size:13.5px; }
+  .count-memo b { color:var(--muted); margin-right:10px; font-size:12.5px; }
+  .count-table td.d { color:var(--faint); } .count-table td.d.on { color:var(--warn); font-weight:700; } .count-table tr.hl td { background:var(--warn-soft); }
+  .adj-grid { display:grid; grid-template-columns:1fr 1fr 1.4fr; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; margin:0 0 12px; }
+  .adj-grid div { display:grid; gap:4px; padding:12px 16px; border-right:1px solid var(--line); } .adj-grid div:last-child { border-right:0; }
+  .adj-grid span { font-size:12px; color:var(--muted); font-weight:700; } .adj-grid b { font-size:1.1rem; font-variant-numeric:tabular-nums; }
+  .count-table, .adj-table { min-width:640px; } .adj-table .why { font-size:13.5px; white-space:normal; word-break:keep-all; }
+  main .inner, main .card { grid-template-columns:minmax(0, 1fr); }
+  #tab-count .frame, #tab-adj .frame { overflow-x:auto; }
+  .tab-empty { padding:28px 12px; text-align:center; color:var(--muted); border:1px dashed var(--line-strong); border-radius:var(--radius); }
   .fee-head { align-items:center; }
   .fee-head .btn { margin-left:auto; padding:7px 14px; font-size:13.5px; }
   .fee-filters { margin:2px 0 12px; }
@@ -317,6 +333,12 @@
       </section>
 
       <section class="card">
+        <div class="stock-tabs" id="stock-tabs" role="tablist" aria-label="재고 메뉴" hidden>
+          <button type="button" role="tab" data-tab="stock">품목별 현재고</button>
+          <button type="button" role="tab" data-tab="count">정기 재고조사</button>
+          <button type="button" role="tab" data-tab="adj">재고 조정</button>
+        </div>
+        <div id="tab-stock">
         <div class="card-head fee-head">
           <h2 id="stock-title">품목별 현재고</h2>
           <p class="note days" id="stock-note">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
@@ -336,6 +358,20 @@
           </table>
         </div>
         <nav class="pager" id="stock-pager" aria-label="품목 페이지"></nav>
+        </div>
+        <div id="tab-count" hidden>
+          <div class="card-head"><p class="note">매주 1회 실사한 재고와 대시보드 재고를 비교합니다</p></div>
+          <div class="filters stock-filters"><div class="f"><label for="c-day">조사일</label><select id="c-day"></select></div></div>
+          <div id="c-body"></div>
+        </div>
+        <div id="tab-adj" hidden>
+          <div class="card-head"><p class="note">재고조사에서 차이가 확인되어 실제 재고에 맞게 조정한 내역입니다</p></div>
+          <div class="filters stock-filters">
+            <div class="f"><label for="adj-range">조회 기간</label><select id="adj-range"><option value="3">최근 3개월</option><option value="">전체</option></select></div>
+            <div class="f"><label for="adj-item">품목</label><select id="adj-item"></select></div>
+          </div>
+          <div id="adj-body"></div>
+        </div>
       </section>
 
       <section class="card" id="fee-card" hidden>
@@ -377,7 +413,7 @@
           <div class="f"><label for="f-from">시작일</label><span class="datebox"><span id="f-from-text"></span><input type="date" id="f-from" aria-label="시작일"></span></div>
           <span class="tilde">~</span>
           <div class="f"><label for="f-to">종료일</label><span class="datebox"><span id="f-to-text"></span><input type="date" id="f-to" aria-label="종료일"></span></div>
-          <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option></select></div>
+          <div class="f"><label for="f-kind">구분</label><select id="f-kind"><option value="">전체</option><option>입고</option><option>출고</option><option>조정</option></select></div>
           <div class="f"><label for="f-item">품목</label><select id="f-item"><option value="">전체</option></select></div>
         </div>
         <div class="sums" id="sums"></div>
@@ -546,6 +582,89 @@
   const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다. 지금은 테스트 계정에서만 보인다
   const stockDateOn = () => isTest() && !D.stock_only && STOCK_DATE.includes(D.name);
   let stockDate = '';                  // 비어 있으면 현재고
+  // ---------- 정기 재고조사·재고 조정 탭 ----------
+  const STOCK_TABS = ['탄천갈매기'];   // 탭을 켤 고객사. 지금은 테스트 계정에서만 보인다. 재고만 보는 계정은 제외
+  const stockTabsOn = () => isTest() && !D.stock_only && STOCK_TABS.includes(D.name);
+  const perOf = (n) => (D.stock.find((s) => s['품목'] === n) || {});
+  function qtyEl(n, q) {
+    const s = perOf(n), td = el('td', 'c');
+    td.append(...qtyNodes({ '수량': q, '단위': s['단위'] || '팩', '입수': s['입수'] }));
+    return td;
+  }
+  function diffText(n, d) {
+    if (!d) return '0';
+    const p = perOf(n)['입수'], u = perOf(n)['단위'] || '팩', a = Math.abs(d), sign = d > 0 ? '+' : '−';
+    if (u === '박스' || !p) return `${sign}${fmt(a)}${u}`;
+    const b = Math.floor(a / p), r = Math.round((a - b * p) * 10) / 10;
+    return sign + [b ? `${fmt(b)}박스` : '', r ? `${fmt(r)}${u}` : ''].filter(Boolean).join(' ');
+  }
+  function tableOf(cls, heads, widths) {
+    const frame = el('div', 'frame'), t = el('table', `stock ${cls}`), cg = document.createElement('colgroup');
+    widths.forEach((w) => { const c = document.createElement('col'); c.style.width = w; cg.append(c); });
+    const hr = el('tr'); heads.forEach(([h, a]) => hr.append(el('th', a, h)));
+    const th = document.createElement('thead'); th.append(hr);
+    const tb = document.createElement('tbody'); t.append(cg, th, tb); frame.append(t);
+    return { frame, tb };
+  }
+  function renderCount() {
+    const list = D.count || [], box = $('c-body');
+    $('c-day').closest('.filters').hidden = !list.length;
+    if (!list.length) { box.replaceChildren(el('div', 'tab-empty', '아직 재고조사 결과가 없습니다.')); return; }
+    const c = list.find((x) => x['일자'] === $('c-day').value) || list[0];
+    const lines = [...c['품목']].sort((a, b) => (a['실사'] === a['전산']) - (b['실사'] === b['전산']));
+    const n = lines.length, ok = lines.filter((x) => x['실사'] === x['전산']).length;
+    const sum = el('div', `count-sum${ok === n ? ' good' : ''}`);
+    sum.append(el('b', '', ok === n ? `${n}개 품목 전부 일치` : `${n}개 품목 중 ${ok}개 일치, ${n - ok}개 차이`), el('span', '', `일치율 ${Math.round(ok / n * 100)}%`));
+    const { frame, tb } = tableOf('count-table', [['품목', 'l'], ['대시보드 재고', 'c'], ['실제 재고', 'c'], ['차이', 'c'], ['결과', 'c']], ['30%', '20%', '20%', '16%', '14%']);
+    lines.forEach((x) => {
+      const d = Math.round((x['실사'] - x['전산']) * 100) / 100, tr = el('tr', d ? 'hl' : '');
+      const nm = el('td', 'l'); nm.append(el('div', 'name', x['품목']));
+      const r = el('td', 'c'); r.append(el('span', `chip ${d ? 'warn' : 'ok'}`, d ? (d < 0 ? '부족' : '초과') : '일치'));
+      tr.append(nm, qtyEl(x['품목'], x['전산']), qtyEl(x['품목'], x['실사']), el('td', `c d${d ? ' on' : ''}`, diffText(x['품목'], d)), r);
+      tb.append(tr);
+    });
+    const parts = [sum, frame];
+    if (c['메모']) { const m = el('p', 'count-memo'); m.append(el('b', '', '조사 메모'), c['메모']); parts.push(m); }
+    box.replaceChildren(...parts);
+  }
+  function renderAdj() {
+    const box = $('adj-body'), months = Number($('adj-range').value), item = $('adj-item').value;
+    let from = '';
+    if (months) { const e = new Date(D.asof + 'T00:00:00'); from = iso(new Date(e.getFullYear(), e.getMonth() - months + 1, 1)); }
+    const rows = D.rows.filter((r) => r['구분'] === '조정' && (!from || r['일자'] >= from) && (!item || r['품목'] === item)).sort((a, b) => (a['일자'] < b['일자'] ? 1 : -1));
+    if (!rows.length) { box.replaceChildren(el('div', 'tab-empty', '조정 내역이 없습니다.')); return; }
+    const grid = el('div', 'adj-grid');
+    [['조정 건수', `${rows.length}건`], ['조정 품목', `${new Set(rows.map((r) => r['품목'])).size}개`], ['최근 조정일', `${rows[0]['일자']} (${wd(rows[0]['일자'])})`]].forEach(([k, v]) => { const d = el('div'); d.append(el('span', '', k), el('b', '', v)); grid.append(d); });
+    const { frame, tb } = tableOf('adj-table', [['조정일', 'c'], ['품목', 'l'], ['조정 전', 'c'], ['조정 후', 'c'], ['조정 수량', 'c'], ['구분', 'c'], ['사유', 'l']], ['13%', '17%', '13%', '13%', '10%', '9%', '25%']);
+    rows.forEach((r) => {
+      const after = stockAt(r['일자']).find((s) => s['품목'] === r['품목']), q = after ? after['수량'] : 0;
+      const tr = el('tr'), nm = el('td', 'l'); nm.append(el('div', 'name', r['품목']));
+      const k = el('td', 'c'); k.append(el('span', `chip ${r['수량'] < 0 ? 'warn' : 'ok'}`, r['수량'] < 0 ? '부족' : '초과'));
+      tr.append(el('td', 'c', `${r['일자'].slice(5).replace('-', '/')} (${wd(r['일자'])})`), nm, qtyEl(r['품목'], q - r['수량']), qtyEl(r['품목'], q), el('td', 'c', diffText(r['품목'], r['수량'])), k, el('td', 'l why', r['비고'] || '-'));
+      tb.append(tr);
+    });
+    box.replaceChildren(grid, frame);
+  }
+  function setStockTab(tab) {
+    document.querySelectorAll('#stock-tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
+    $('tab-stock').hidden = tab !== 'stock'; $('tab-count').hidden = tab !== 'count'; $('tab-adj').hidden = tab !== 'adj';
+    if (tab === 'count') renderCount();
+    if (tab === 'adj') renderAdj();
+  }
+  function setupStockTabs() {
+    const on = stockTabsOn();
+    $('stock-tabs').hidden = !on;
+    if (on) {
+      $('c-day').replaceChildren(...(D.count || []).map((c) => new Option(`${Number(c['일자'].slice(0, 4))}년 ${Number(c['일자'].slice(5, 7))}월 ${Number(c['일자'].slice(8))}일 (${wd(c['일자'])})`, c['일자'])));
+      const names = [...new Set(D.rows.filter((r) => r['구분'] === '조정').map((r) => r['품목']))];
+      $('adj-item').replaceChildren(new Option('전체', ''), ...names.map((n) => new Option(n, n)));
+    }
+    setStockTab('stock');
+  }
+  document.querySelectorAll('#stock-tabs button').forEach((b) => b.addEventListener('click', () => setStockTab(b.dataset.tab)));
+  $('c-day').addEventListener('change', renderCount);
+  ['adj-range', 'adj-item'].forEach((id) => $(id).addEventListener('change', renderAdj));
+
   const STOCK_DL = [];                 // 재고 다운로드를 열어 줄 고객사(화면 이름). 비어 있으면 테스트 계정에서만 보인다
   let stockList = [];                  // 지금 화면에 보이는 날짜의 품목 목록
   function stockAt(day) {              // 현재고에서 조회 일자 이후의 입출고를 되돌려 그날 끝 재고를 구한다
@@ -566,6 +685,7 @@
     $('d-asof').textContent = `${day} (${wd(day)})`;
     $('d-count').textContent = S.length;
     $('stock-title').textContent = past ? `${day.slice(5).replace('-', '/')} (${wd(day)}) 기준 재고` : '품목별 현재고';
+    $('stock-title').hidden = stockTabsOn() && !past;
     $('stock-note').textContent = past ? '그날 입출고까지 반영한 재고입니다. 지난 날짜는 예상 소진을 표시하지 않습니다.' : '예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간';
     $('s-date-text').textContent = day;
     $('s-date-reset').hidden = !past;
@@ -626,6 +746,7 @@
     $('stock-dl').hidden = !(isTest() || STOCK_DL.includes(D.name));
     $('s-date').min = D.from || ''; $('s-date').max = D.asof;
     setStockDate('');
+    setupStockTabs();
 
     $('ledger-card').hidden = !!D.stock_only;   // 재고만 보는 계정은 입출고 내역을 숨긴다
     $('fee-card').hidden = !D.fee;

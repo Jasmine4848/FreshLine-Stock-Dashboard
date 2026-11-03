@@ -79,7 +79,7 @@ def load_store_first(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': unit_of(r[3], cfg.get('unit', '박스')), '비고': s(r[5]) if len(r) > 5 else ''})
     return items, rows
 
-def load_pack_info(wb, cfg):
+def pack_items(wb, open_col):
     st, pi = wb['입출고현황'], wb['품목정보']
     per = {}
     for r in range(5, pi.max_row + 1):
@@ -92,7 +92,11 @@ def load_pack_info(wb, cfg):
         if n not in per: continue
         p, stopped = per[n]
         # 운영 중단 품목은 재고표에는 안 보이지만, 배송료(박스 환산) 계산에는 입수가 필요해서 목록에는 남긴다
-        items.append({'품목': n, '단위': '팩', '입수': p, '기초': num(st.cell(r, 5).value), '중단': stopped})
+        items.append({'품목': n, '단위': '팩', '입수': p, '기초': num(st.cell(r, open_col).value), '중단': stopped})
+    return items
+
+def load_pack_info(wb, cfg):
+    items = pack_items(wb, 5)
     rows = []
     for r in wb['입고내역'].iter_rows(min_row=2, max_col=5, values_only=True):
         if not d(r[0]) or not s(r[1]): continue
@@ -101,6 +105,17 @@ def load_pack_info(wb, cfg):
         if not d(r[0]) or not s(r[2]): continue
         rows.append({'일자': d(r[0]), '구분': '출고', '점포': s(r[1]), '품목': s(r[2]), '수량': num(r[4]), '단위': '팩', '비고': s(r[5]),
                      '박스': num(r[3]) if isinstance(r[3], (int, float)) else None})   # 화면에는 출고를 박스로 보여 준다(D열)
+    return items, rows
+
+def load_pack_ledger(wb, cfg):
+    """입고·출고·조정을 한 시트에 쓰는 양식: 수불내역 A 일자, B 구분, C 점포명, D 품목명, E 규격, F 수량(조정은 부족이 음수), G 비고. 입출고현황 기초재고는 F열"""
+    items = pack_items(wb, 6)
+    rows = []
+    for r in wb['수불내역'].iter_rows(min_row=2, max_col=7, values_only=True):
+        if not d(r[0]) or not s(r[3]) or s(r[1]) not in ('입고', '출고', '조정'): continue
+        row = {'일자': d(r[0]), '구분': s(r[1]), '점포': s(r[2]), '품목': s(r[3]), '수량': num(r[5]), '단위': '팩', '비고': s(r[6])}
+        if row['구분'] == '출고': row['박스'] = num(r[4]) if isinstance(r[4], (int, float)) else None
+        rows.append(row)
     return items, rows
 
 def load_brand_pack(wb, cfg):
@@ -164,7 +179,7 @@ def load_single_ledger(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': s(r[1]), '점포': '', '품목': s(r[3]), '수량': num(r[4]), '단위': '개', '비고': s(r[5])})
     return items, rows
 
-LOADERS = {'standard': load_standard, 'store_first': load_store_first, 'pack_info': load_pack_info, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger}
+LOADERS = {'standard': load_standard, 'store_first': load_store_first, 'pack_info': load_pack_info, 'pack_ledger': load_pack_ledger, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger}
 
 
 # ---------- 계산 ----------

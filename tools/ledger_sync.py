@@ -134,6 +134,7 @@ LAYOUT = {
     'standard':  {'date': 1, 'brand': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'BOX'},
     'pack6':     {'date': 1, 'brand': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'PK'},
     'pack_info': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'PK'},
+    'pack_ledger': {'date': 1, 'kind': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'PK', 'sheet': '수불내역'},   # 입고·출고·조정을 한 시트에 쓰는 양식
     'brand_pack': {'date': 1, 'store': 2, 'item': 3, 'box': 4, 'qty': 5, 'base': 'PK'},
     'store_first': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'BOX'},
 }
@@ -146,7 +147,7 @@ def read_client(cfg, path):
     wb = openpyxl.load_workbook(path, data_only=True)
     kind, L = cfg['kind'], LAYOUT[cfg['kind']]
     per, items = {}, []
-    if kind == 'pack_info':
+    if kind in ('pack_info', 'pack_ledger'):
         pi = wb['품목정보']
         for r in range(5, pi.max_row + 1):
             n = pi.cell(r, 3).value
@@ -171,13 +172,14 @@ def read_client(cfg, path):
             n = st.cell(r, 2).value
             if not n or n == '합계': break
             if n != '소계': items.append(str(n).strip())
-    ws = wb['출고내역']
+    ws = wb[L.get('sheet', '출고내역')]
     ledger, last_row = [], 1
     for r in range(2, ws.max_row + 1):
         v = ws.cell(r, L['date']).value
         if v is None: continue
         last_row = r
         if not isinstance(v, dt.datetime): continue
+        if 'kind' in L and str(ws.cell(r, L['kind']).value or '').strip() != '출고': continue
         g = lambda k: ws.cell(r, L[k]).value if k in L else None
         ledger.append({'일자': v.date(), '점포': str(g('store') or '').strip(), '품목': str(g('item') or '').strip(),
                        '수량': g('qty'), '브랜드': str(g('brand') or '').strip(), '단위': str(g('unit') or '').strip()})
@@ -363,6 +365,7 @@ def run(base_dir, cfg_file, src_file, state_file, apply=False, today=None, files
         rows = []
         for m in add:
             v = {L['date']: excel_serial(m['일자']), L['store']: m['점포'], L['item']: m['품목']}
+            if 'kind' in L: v[L['kind']] = '출고'
             if 'brand' in L:
                 b = [bb for (s, bb), _ in brand_of.most_common() if s == m['점포']]
                 v[L['brand']] = b[0] if b else (m['원본브랜드'] or '')
@@ -388,7 +391,7 @@ def run(base_dir, cfg_file, src_file, state_file, apply=False, today=None, files
             for i, v in enumerate(rows):
                 r = start + i
                 fixed.append({c: ((val[0].replace('{r}', str(r)), val[1]) if isinstance(val, tuple) else val) for c, val in v.items()})
-            append_rows(path, path, '출고내역', start, fixed)
+            append_rows(path, path, LAYOUT[next(c['kind'] for c in clients_cfg if c['id'] == cid)].get('sheet', '출고내역'), start, fixed)
         json.dump(state, open(state_file, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
     return report, src_max
 

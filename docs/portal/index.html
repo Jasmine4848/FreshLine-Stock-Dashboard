@@ -118,7 +118,8 @@
   .filters input[type=search] { padding:8px 10px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); min-width:14rem; }
   .filters input[type=search]:focus { outline:2px solid var(--accent); outline-offset:1px; }
   .stock-filters { margin:4px 0 12px; }
-  .stock-filters select, .stock-filters input[type=search] { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
+  .stock-filters select, .stock-filters input[type=search], .stock-filters .datebox { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
+  .stock-reset { height:38px; padding:0 12px; border:1px solid var(--line-strong); border-radius:var(--radius); background:var(--panel); color:var(--muted); cursor:pointer; font-size:13.5px; }
   .stock-box { max-height: 28rem; overflow:auto; }
   .stock-box .stock th { position:sticky; top:0; z-index:1; }
   .pager { display:flex; justify-content:center; flex-wrap:wrap; gap:4px; margin-top:12px; }
@@ -317,10 +318,12 @@
 
       <section class="card">
         <div class="card-head">
-          <h2>품목별 현재고</h2>
-          <p class="note days">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
+          <h2 id="stock-title">품목별 현재고</h2>
+          <p class="note days" id="stock-note">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
         </div>
         <div class="filters stock-filters">
+          <div class="f" id="s-date-box" hidden><label for="s-date">조회 일자</label><span class="datebox"><span id="s-date-text"></span><input type="date" id="s-date" aria-label="재고 조회 일자"></span></div>
+          <button class="stock-reset" id="s-date-reset" type="button" hidden>현재고 보기</button>
           <div class="f"><label for="s-q">품목 검색</label><input type="search" id="s-q" placeholder="품목명 입력" autocomplete="off"></div>
           <div class="f"><label for="s-status">상태</label><select id="s-status"><option value="">전체</option><option>여유</option><option>품절 예정</option><option>품절</option></select></div>
         </div>
@@ -538,29 +541,47 @@
     return m.size ? [...m].map(([u, v]) => `${fmt(v)}${u}`).join(' · ') : '0';
   };
 
-  function show() {
-    document.title = `${D.name} 재고 현황`;
-    $('d-title').textContent = D.name;
-    $('d-asof').textContent = `${D.asof} (${wd(D.asof)})`;
-    $('d-count').textContent = D.stock.length;
-    $('d-checked').textContent = D.checked;
-    const conv = D.stock.filter((s) => boxes(s) != null);
+  // ---------- 일자별 재고 ----------
+  const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다. 지금은 테스트 계정에서만 보인다
+  const stockDateOn = () => isTest() && !D.stock_only && STOCK_DATE.includes(D.name);
+  let stockDate = '';                  // 비어 있으면 현재고
+  function stockAt(day) {              // 현재고에서 조회 일자 이후의 입출고를 되돌려 그날 끝 재고를 구한다
+    const back = {};
+    for (const r of D.rows) {
+      if (r['일자'] > day) back[r['품목']] = (back[r['품목']] || 0) + (r['구분'] === '출고' ? r['수량'] : -r['수량']);
+    }
+    return D.stock.map((s) => {
+      const q = Math.round((s['수량'] + (back[s['품목']] || 0)) * 100) / 100;
+      const box = s['단위'] === '박스' ? q : (s['입수'] ? Math.floor(q / s['입수']) : null);
+      const status = q <= 0 ? '품절' : ((box ?? q) < D.low ? '품절 예정' : '여유');
+      return { ...s, '수량': q, '소진주': null, '상태': status };
+    });
+  }
+  function renderStockView() {
+    const day = stockDate || D.asof, past = !!stockDate, S = past ? stockAt(day) : D.stock;
+    $('d-asof').textContent = `${day} (${wd(day)})`;
+    $('d-count').textContent = S.length;
+    $('stock-title').textContent = past ? `${day.slice(5).replace('-', '/')} (${wd(day)}) 기준 재고` : '품목별 현재고';
+    $('stock-note').textContent = past ? '그날 입출고까지 반영한 재고입니다. 지난 날짜는 예상 소진을 표시하지 않습니다.' : '예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간';
+    $('s-date-text').textContent = day;
+    $('s-date-reset').hidden = !past;
+    const conv = S.filter((s) => boxes(s) != null);
     const total = conv.reduce((a, s) => a + Math.max(0, boxes(s)), 0);
-    const units = [...new Set(D.stock.map((s) => s['단위']))];
+    const units = [...new Set(S.map((s) => s['단위']))];
     const loose = !conv.length && units.length === 1;   // 박스 환산 없이 낱개로만 보는 고객사
     if (loose) {
-      $('t-total').textContent = fmt(D.stock.reduce((a, s) => a + Math.max(0, s['수량']), 0)); $('t-unit').textContent = units[0];
+      $('t-total').textContent = fmt(S.reduce((a, s) => a + Math.max(0, s['수량']), 0)); $('t-unit').textContent = units[0];
       $('t-total-sub').textContent = '전체 품목 합계';
     } else {
       $('t-total').textContent = fmt(Math.floor(total * 10) / 10); $('t-unit').textContent = '박스';
-      $('t-total-sub').textContent = conv.length === D.stock.length ? (D.stock.every((s) => s['단위'] === '박스') ? '전체 품목 합계' : '박스 환산 합계') : '박스 단위 품목 합계';
+      $('t-total-sub').textContent = conv.length === S.length ? (S.every((s) => s['단위'] === '박스') ? '전체 품목 합계' : '박스 환산 합계') : '박스 단위 품목 합계';
       $('t-low-sub').innerHTML = '재고 <span id="t-low-n"></span>박스 미만 품목';
       $('t-low-n').textContent = D.low;
     }
-    const low = D.stock.filter((s) => s['상태'] === '품절 예정' || s['상태'] === '곧 소진').map((s) => s['품목']);
+    const low = S.filter((s) => s['상태'] === '품절 예정' || s['상태'] === '곧 소진').map((s) => s['품목']);
     if (loose) $('t-low-sub').textContent = `재고 ${D.low}${units[0]} 미만 품목`;
-    else if (conv.length < D.stock.length) $('t-low-sub').innerHTML = `재고 ${D.low}박스 미만 품목 <span style="white-space:nowrap">(낱개 품목은 ${D.low}개 미만)</span>`;
-    const out = D.stock.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
+    else if (conv.length < S.length) $('t-low-sub').innerHTML = `재고 ${D.low}박스 미만 품목 <span style="white-space:nowrap">(낱개 품목은 ${D.low}개 미만)</span>`;
+    const out = S.filter((s) => s['상태'] === '품절').map((s) => s['품목']);
     $('t-low').textContent = low.length ? low.join('\n') : '없음'; $('t-low-tile').classList.toggle('on', low.length > 0);
     $('t-out').textContent = out.length ? out.join('\n') : '없음'; $('t-out-tile').classList.toggle('on', out.length > 0);
     for (const [id, list] of [['t-low', low], ['t-out', out]]) {   // 5줄 넘으면 목록 안에서 스크롤, 아래에 개수 안내
@@ -570,7 +591,7 @@
     }
 
     const chip = { '여유': 'ok', '품절 예정': 'warn', '곧 소진': 'warn', '품절': 'bad' };
-    $('stock-body').replaceChildren(...D.stock.map((s) => {
+    $('stock-body').replaceChildren(...S.map((s) => {
       const tr = el('tr');
       const q = el('td', 'c'); q.append(...qtyNodes(s));
       const w = s['소진주'] == null ? '-' : (s['소진주'] < 1 ? '1주 미만' : `약 ${Math.floor(s['소진주'])}주`);
@@ -581,7 +602,25 @@
       tr.dataset.status = s['상태'];
       return tr;
     }));
-    $('s-q').value = ''; $('s-status').value = ''; filterStock();
+    filterStock();
+  }
+  function setStockDate(v) {
+    stockDate = v && v < D.asof ? (v < (D.from || v) ? D.from : v) : '';
+    $('s-date').value = stockDate || D.asof;
+    renderStockView();
+  }
+  $('s-date').addEventListener('change', () => setStockDate($('s-date').value));
+  $('s-date').addEventListener('click', () => { try { $('s-date').showPicker(); } catch (_) {} });
+  $('s-date-reset').addEventListener('click', () => setStockDate(''));
+
+  function show() {
+    document.title = `${D.name} 재고 현황`;
+    $('d-title').textContent = D.name;
+    $('d-checked').textContent = D.checked;
+    $('s-q').value = ''; $('s-status').value = '';
+    $('s-date-box').hidden = !stockDateOn();
+    $('s-date').min = D.from || ''; $('s-date').max = D.asof;
+    setStockDate('');
 
     $('ledger-card').hidden = !!D.stock_only;   // 재고만 보는 계정은 입출고 내역을 숨긴다
     $('fee-card').hidden = !D.fee;

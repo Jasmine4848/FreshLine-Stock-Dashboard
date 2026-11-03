@@ -155,7 +155,6 @@
   .stock-tabs button { border:0; background:none; padding:10px 16px; font-size:1.02rem; font-weight:700; color:var(--muted); border-bottom:3px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
   .stock-tabs button[aria-selected=true] { color:var(--accent); border-bottom-color:var(--accent); }
   .count-sum { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 12px; padding:13px 16px; border:1px solid var(--line); border-radius:var(--radius); margin:0 0 12px; background:var(--warn-soft); color:var(--warn); }
-  .count-sum.good { background:var(--ok-soft); color:var(--ok); }
   .count-sum b { font-size:1.1rem; } .count-sum span { font-size:13.5px; font-weight:700; }
   .count-memo { margin:12px 0 0; padding:10px 14px; background:var(--head); border-radius:var(--radius); font-size:13.5px; }
   .count-memo b { color:var(--muted); margin-right:10px; font-size:12.5px; }
@@ -613,8 +612,8 @@
     const c = list.find((x) => x['일자'] === $('c-day').value) || list[0];
     const lines = [...c['품목']].sort((a, b) => (a['실사'] === a['전산']) - (b['실사'] === b['전산']));
     const n = lines.length, ok = lines.filter((x) => x['실사'] === x['전산']).length;
-    const sum = el('div', `count-sum${ok === n ? ' good' : ''}`);
-    sum.append(el('b', '', ok === n ? `${n}개 품목 전부 일치` : `${n}개 품목 중 ${ok}개 일치, ${n - ok}개 차이`), el('span', '', `일치율 ${Math.round(ok / n * 100)}%`));
+    const sum = el('div', 'count-sum');               // 차이가 있는 회차에만 요약을 보여 준다
+    sum.append(el('b', '', `${n}개 품목 중 ${ok}개 일치, ${n - ok}개 차이`), el('span', '', `일치율 ${Math.round(ok / n * 100)}%`));
     const { frame, tb } = tableOf('count-table', [['품목', 'l'], ['대시보드 재고', 'c'], ['실제 재고', 'c'], ['차이', 'c'], ['결과', 'c']], ['30%', '20%', '20%', '16%', '14%']);
     lines.forEach((x) => {
       const d = Math.round((x['실사'] - x['전산']) * 100) / 100, tr = el('tr', d ? 'hl' : '');
@@ -623,7 +622,7 @@
       tr.append(nm, qtyEl(x['품목'], x['전산']), qtyEl(x['품목'], x['실사']), el('td', `c d${d ? ' on' : ''}`, diffText(x['품목'], d)), r);
       tb.append(tr);
     });
-    const parts = [sum, frame];
+    const parts = ok === n ? [frame] : [sum, frame];
     if (c['메모']) { const m = el('p', 'count-memo'); m.append(el('b', '', '조사 메모'), c['메모']); parts.push(m); }
     box.replaceChildren(...parts);
   }

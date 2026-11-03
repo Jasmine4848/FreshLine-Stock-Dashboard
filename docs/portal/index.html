@@ -622,7 +622,7 @@
   $('s-status').addEventListener('change', () => filterStock());
 
   // ---------- 배송료 정산 ----------
-  const FEE_DL = ['곱창이야기', '두투미'];   // 정산내역 다운로드 버튼을 보여 줄 고객사(화면 이름). 다른 고객사도 열려면 여기에 추가
+  const FEE_DL = ['곱창이야기', '두투미', '삐삣버거', '예나FS', '소촌갈비찜', '진된장 · 순진한두부', '열문집'];   // 정산내역 다운로드 버튼을 보여 줄 고객사(화면 이름). 다른 고객사도 열려면 여기에 추가
   let feeView = null;              // 지금 화면에 보이는 정산 기간의 내역
   const lastDay = (y, m) => new Date(y, m + 1, 0).getDate();
   function periodOf(cycle, ds) {
@@ -783,9 +783,9 @@
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, feeSheet(rows, [13, 22, ...(hasItem ? [24] : []), 10, 11, 13], [merge(0, 0, last), merge(1, 0, last), merge(rows.length - 1, 0, last - 3)], [last - 2, last - 1, last], true), '배송료정산');
     if (ex.length) {                 // 합계에서 뺀 출고가 있는 기간에만 시트를 만든다
-      const xl = hasItem ? 4 : 3;
-      const xr = [[`${D.name} 합계 제외 출고`], [meta], [], ['일자', '거래처', ...(hasItem ? ['품목'] : []), `${F.unit} 수`, '제외 사유'], ...ex.map((x) => [x.d, x.s, ...it(x), x.q, x.x])];
-      XLSX.utils.book_append_sheet(wb, feeSheet(xr, [13, 22, ...(hasItem ? [24] : []), 10, 22], [merge(0, 0, xl), merge(1, 0, xl)], [xl - 1], false), '제외내역');
+      const xl = hasItem ? 5 : 4;
+      const xr = [[`${D.name} 합계 제외 출고`], [meta], [], ['일자', '거래처', ...(hasItem ? ['품목'] : []), '수량', '단위', '제외 사유'], ...ex.map((x) => [x.d, x.s, ...it(x), x.q, x.u || F.unit, x.x])];
+      XLSX.utils.book_append_sheet(wb, feeSheet(xr, [13, 22, ...(hasItem ? [24] : []), 8, 6, 26], [merge(0, 0, xl), merge(1, 0, xl)], [xl - 2], false), '제외내역');
     }
     XLSX.writeFile(wb, `${D.name}_배송료정산_${a}_${b}.xlsx`);
   });

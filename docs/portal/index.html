@@ -149,6 +149,8 @@
   .fee-cell.total { background:var(--accent-soft); }
   .fee-cell.total .v { font-size:1.5rem; font-weight:700; color:var(--accent); }
   .fee-cell .v small { font-size:13px; font-weight:400; color:var(--muted); margin-left:3px; }
+  .fee-head { align-items:center; }
+  .fee-head .btn { margin-left:auto; padding:7px 14px; font-size:13.5px; }
   .fee-filters { margin:2px 0 12px; }
   .fee-filters select { min-width:13rem; }
   .fee-filters select, .fee-filters .datebox { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
@@ -332,9 +334,10 @@
       </section>
 
       <section class="card" id="fee-card" hidden>
-        <div class="card-head">
+        <div class="card-head fee-head">
           <h2>배송료 정산</h2>
           <p class="note" id="fee-note"></p>
+          <button class="btn" id="fee-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="fee-dl-text">정산내역 다운로드</span></button>
         </div>
         <div class="filters fee-filters">
           <div class="f"><label for="fee-sel">정산 기간</label><select id="fee-sel"></select></div>
@@ -578,6 +581,7 @@
 
     $('ledger-card').hidden = !!D.stock_only;   // 재고만 보는 계정은 입출고 내역을 숨긴다
     $('fee-card').hidden = !D.fee;
+    $('fee-dl').hidden = !FEE_DL.includes(D.name);
     if (D.fee) setupFee();
     const items = [...new Set(D.rows.map((r) => r['품목']))];
     $('f-item').replaceChildren(new Option('전체', ''), ...items.map((n) => new Option(n, n)));
@@ -618,6 +622,8 @@
   $('s-status').addEventListener('change', () => filterStock());
 
   // ---------- 배송료 정산 ----------
+  const FEE_DL = ['곱창이야기'];   // 정산내역 다운로드 버튼을 보여 줄 고객사(화면 이름). 다른 고객사도 열려면 여기에 추가
+  let feeView = null;              // 지금 화면에 보이는 정산 기간의 내역
   const lastDay = (y, m) => new Date(y, m + 1, 0).getDate();
   function periodOf(cycle, ds) {
     const d = new Date(ds + 'T00:00:00'), y = d.getFullYear(), m = d.getMonth();
@@ -657,6 +663,8 @@
     const inR = F.lines.filter((x) => (!a || x.d >= a) && (!b || x.d <= b));
     const used = inR.filter((x) => !x.x), ex = inR.filter((x) => x.x);
     const qty = used.reduce((t, x) => t + x.q, 0), total = used.reduce((t, x) => t + x.a, 0);
+    feeView = { a, b, used, ex, qty, total };
+    $('fee-dl').disabled = !inR.length;
     $('fee-period').textContent = a && b ? `${md(a)} ~ ${md(b)}` : '-';
     $('fee-qty').textContent = `${fmt(qty)}${F.unit}`;
     $('fee-price-k').textContent = `${F.unit}당 배송료`;
@@ -725,6 +733,57 @@
     const pill = (cls, label, val) => { const s = el('span', `sum ${cls}`); s.append(label, el('b', '', val)); return s; };
     $('sums').replaceChildren(pill('', '조회', `${rows.length}건`), pill('in', '입고', sin), pill('out', '출고', sout));
   }
+
+  // 정산내역 엑셀: 서식이 필요해 버튼을 누를 때 서식 지원판을 불러온다. 못 불러오면 기본 라이브러리로 서식 없이 저장한다
+  let xlsxStyle = null;
+  const loadXlsxStyle = () => (xlsxStyle ||= new Promise((ok) => {
+    const s = document.createElement('script');
+    s.src = 'xlsx-js-style-1.2.0.min.js';
+    s.onload = () => ok(true);
+    s.onerror = () => { xlsxStyle = null; ok(false); };
+    document.head.append(s);
+  }));
+  function feeSheet(rows, cols, merges, numCols, lastBold) {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const line = { style: 'thin', color: { rgb: 'DFE3E8' } };
+    const border = { top: line, bottom: line, left: line, right: line };
+    const font = { name: '맑은 고딕', sz: 10 };
+    rows.forEach((row, r) => row.forEach((v, c) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      if (!ws[ref]) ws[ref] = { t: 's', v: '' };
+      if (r === 0) ws[ref].s = { font: { ...font, sz: 14, bold: true } };
+      else if (r === 1) ws[ref].s = { font: { ...font, color: { rgb: '5D6878' } } };
+      else if (r === 3) ws[ref].s = { font: { ...font, bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '13233F' } }, alignment: { horizontal: 'center' }, border };
+      else if (r > 3) {
+        const total = lastBold && r === rows.length - 1;
+        ws[ref].s = { font: { ...font, bold: total }, border, alignment: { horizontal: numCols.includes(c) ? 'right' : 'left' }, ...(total ? { fill: { fgColor: { rgb: 'E8EEFC' } } } : {}) };
+        if (numCols.includes(c) && typeof v === 'number') ws[ref].z = '#,##0';
+      }
+    }));
+    ws['!cols'] = cols.map((wch) => ({ wch }));
+    ws['!merges'] = merges;
+    return ws;
+  }
+  $('fee-dl').addEventListener('click', async () => {
+    if (!D || !feeView) return;
+    const btn = $('fee-dl'), label = $('fee-dl-text');
+    btn.disabled = true;
+    await loadXlsxStyle();
+    btn.disabled = false;
+    if (typeof XLSX === 'undefined') { label.textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
+    const { a, b, used, ex, qty, total } = feeView, F = D.fee;
+    const title = `${D.name} 배송료 정산내역`, meta = `정산 기간 ${a} ~ ${b} · (주)프레시라인`;
+    const merge = (r, c1, c2) => ({ s: { r, c: c1 }, e: { r, c: c2 } });
+    const rows = [[title], [meta], [], ['일자', '거래처', `${F.unit} 수`, '단가(원)', '금액(원)'],
+      ...used.map((x) => [x.d, x.s, x.q, F.price, Math.round(x.a)]), ['합계', '', qty, '', Math.round(total)]];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, feeSheet(rows, [13, 24, 10, 11, 13], [merge(0, 0, 4), merge(1, 0, 4), merge(rows.length - 1, 0, 1)], [2, 3, 4], true), '배송료정산');
+    if (ex.length) {                 // 합계에서 뺀 출고가 있는 기간에만 시트를 만든다
+      const xr = [[`${D.name} 합계 제외 출고`], [meta], [], ['일자', '거래처', `${F.unit} 수`, '제외 사유'], ...ex.map((x) => [x.d, x.s, x.q, x.x])];
+      XLSX.utils.book_append_sheet(wb, feeSheet(xr, [13, 24, 10, 22], [merge(0, 0, 3), merge(1, 0, 3)], [2], false), '제외내역');
+    }
+    XLSX.writeFile(wb, `${D.name}_배송료정산_${a}_${b}.xlsx`);
+  });
 
   $('dl').addEventListener('click', () => {
     if (!D) return;

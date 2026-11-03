@@ -165,7 +165,7 @@
   #tab-count .frame, #tab-adj .frame { overflow-x:auto; }
   .tab-empty { padding:28px 12px; text-align:center; color:var(--muted); border:1px dashed var(--line-strong); border-radius:var(--radius); }
   .fee-head { align-items:center; }
-  .fee-head .btn { margin-left:auto; padding:7px 14px; font-size:13.5px; }
+  .fee-head .btn { margin-left:auto; }
   .fee-filters { margin:2px 0 12px; }
   .fee-filters select { min-width:13rem; }
   .fee-filters select, .fee-filters .datebox { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
@@ -339,7 +339,7 @@
         <div class="card-head fee-head">
           <h2 id="stock-title">품목별 현재고</h2>
           <p class="note days" id="stock-note">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
-          <button class="btn" id="stock-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="stock-dl-text">재고 다운로드</span></button>
+          <button class="btn" id="stock-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="stock-dl-text">엑셀 다운로드</span></button>
         </div>
         <div class="filters stock-filters">
           <div class="f" id="s-date-box" hidden><label for="s-date">조회 일자</label><span class="datebox"><span id="s-date-text"></span><input type="date" id="s-date" aria-label="재고 조회 일자"></span></div>
@@ -375,7 +375,7 @@
         <div class="card-head fee-head">
           <h2>배송료 정산</h2>
           <p class="note" id="fee-note"></p>
-          <button class="btn" id="fee-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="fee-dl-text">정산내역 다운로드</span></button>
+          <button class="btn" id="fee-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="fee-dl-text">엑셀 다운로드</span></button>
         </div>
         <div class="filters fee-filters">
           <div class="f"><label for="fee-sel">정산 기간</label><select id="fee-sel"></select></div>

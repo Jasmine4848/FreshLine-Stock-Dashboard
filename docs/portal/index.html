@@ -543,10 +543,10 @@
   };
 
   // ---------- 일자별 재고 ----------
-  const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다. 지금은 테스트 계정에서만 보인다
-  const stockDateOn = () => isTest() && !D.stock_only && STOCK_DATE.includes(D.name);
+  const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다
+  const stockDateOn = () => !D.stock_only && STOCK_DATE.includes(D.name);   // 재고만 보는 계정(점주용)은 입출고 내역이 없어 제외
   let stockDate = '';                  // 비어 있으면 현재고
-  const STOCK_DL = [];                 // 재고 다운로드를 열어 줄 고객사(화면 이름). 비어 있으면 테스트 계정에서만 보인다
+  const STOCK_DL = ['탄천갈매기'];     // 재고 다운로드를 열어 줄 고객사(화면 이름). 테스트 계정에는 전부 보인다. 재고만 보는 계정은 제외
   let stockList = [];                  // 지금 화면에 보이는 날짜의 품목 목록
   function stockAt(day) {              // 현재고에서 조회 일자 이후의 입출고를 되돌려 그날 끝 재고를 구한다
     const back = {};
@@ -623,7 +623,7 @@
     $('d-checked').textContent = D.checked;
     $('s-q').value = ''; $('s-status').value = '';
     $('s-date-box').hidden = !stockDateOn();
-    $('stock-dl').hidden = !(isTest() || STOCK_DL.includes(D.name));
+    $('stock-dl').hidden = !(isTest() || (!D.stock_only && STOCK_DL.includes(D.name)));
     $('s-date').min = D.from || ''; $('s-date').max = D.asof;
     setStockDate('');
 

@@ -317,9 +317,10 @@
       </section>
 
       <section class="card">
-        <div class="card-head">
+        <div class="card-head fee-head">
           <h2 id="stock-title">품목별 현재고</h2>
           <p class="note days" id="stock-note">예상 소진: 최근 2주 평균 출고량 기준의 대략적인 기간</p>
+          <button class="btn" id="stock-dl" type="button" hidden><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M7.25 1.5h1.5v7.19l2.47-2.47 1.06 1.06L8 11.56 3.72 7.28l1.06-1.06 2.47 2.47zM2 12.5h1.5v1h9v-1H14V15H2z"/></svg><span id="stock-dl-text">재고 다운로드</span></button>
         </div>
         <div class="filters stock-filters">
           <div class="f" id="s-date-box" hidden><label for="s-date">조회 일자</label><span class="datebox"><span id="s-date-text"></span><input type="date" id="s-date" aria-label="재고 조회 일자"></span></div>
@@ -545,6 +546,8 @@
   const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다. 지금은 테스트 계정에서만 보인다
   const stockDateOn = () => isTest() && !D.stock_only && STOCK_DATE.includes(D.name);
   let stockDate = '';                  // 비어 있으면 현재고
+  const STOCK_DL = [];                 // 재고 다운로드를 열어 줄 고객사(화면 이름). 비어 있으면 테스트 계정에서만 보인다
+  let stockList = [];                  // 지금 화면에 보이는 날짜의 품목 목록
   function stockAt(day) {              // 현재고에서 조회 일자 이후의 입출고를 되돌려 그날 끝 재고를 구한다
     const back = {};
     for (const r of D.rows) {
@@ -559,6 +562,7 @@
   }
   function renderStockView() {
     const day = stockDate || D.asof, past = !!stockDate, S = past ? stockAt(day) : D.stock;
+    stockList = S;
     $('d-asof').textContent = `${day} (${wd(day)})`;
     $('d-count').textContent = S.length;
     $('stock-title').textContent = past ? `${day.slice(5).replace('-', '/')} (${wd(day)}) 기준 재고` : '품목별 현재고';
@@ -619,6 +623,7 @@
     $('d-checked').textContent = D.checked;
     $('s-q').value = ''; $('s-status').value = '';
     $('s-date-box').hidden = !stockDateOn();
+    $('stock-dl').hidden = !(isTest() || STOCK_DL.includes(D.name));
     $('s-date').min = D.from || ''; $('s-date').max = D.asof;
     setStockDate('');
 
@@ -831,6 +836,29 @@
       XLSX.utils.book_append_sheet(wb, feeSheet(xr, [13, 22, ...(hasItem ? [24] : []), 8, 6, 26], [merge(0, 0, xl), merge(1, 0, xl)], [xl - 2], false), '제외내역');
     }
     XLSX.writeFile(wb, `${D.name}_배송료정산_${a}_${b}.xlsx`);
+  });
+
+  $('stock-dl').addEventListener('click', async () => {
+    if (!D) return;
+    const btn = $('stock-dl'), label = $('stock-dl-text');
+    btn.disabled = true;
+    await loadXlsxStyle();
+    btn.disabled = false;
+    if (typeof XLSX === 'undefined') { label.textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
+    const day = stockDate || D.asof, past = !!stockDate;
+    const q = $('s-q').value.toLowerCase().replace(/\s+/g, ''), st = $('s-status').value;
+    const list = stockList.filter((s) => (!q || (s['품목'] + ' ' + (s['브랜드'] || '')).toLowerCase().replace(/\s+/g, '').includes(q)) && (!st || s['상태'] === st));   // 검색·상태 필터 그대로
+    const hasBrand = list.some((s) => s['브랜드']);
+    const held = (s) => qtyNodes(s).map((n) => n.textContent ?? n).join('').trim();
+    const left = (s) => (s['소진주'] == null ? '-' : (s['소진주'] < 1 ? '1주 미만' : `약 ${Math.floor(s['소진주'])}주`));
+    const head = ['품목', ...(hasBrand ? ['브랜드'] : []), '보유 수량', '총 수량', '단위', '입수', '상태', ...(past ? [] : ['예상 소진'])];
+    const rows = [[`${D.name} 재고 현황`], [`기준일 ${day} (${wd(day)}) · (주)프레시라인`], [], head,
+      ...list.map((s) => [s['품목'], ...(hasBrand ? [s['브랜드'] || ''] : []), held(s), s['수량'], s['단위'], s['입수'] ?? '', s['상태'], ...(past ? [] : [left(s)])])];
+    const n = head.length - 1, qc = hasBrand ? 3 : 2;
+    const merge = (r) => ({ s: { r, c: 0 }, e: { r, c: n } });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, feeSheet(rows, [26, ...(hasBrand ? [14] : []), 16, 10, 7, 7, 10, ...(past ? [] : [10])], [merge(0), merge(1)], [qc + 1, qc + 3], false), '재고현황');
+    XLSX.writeFile(wb, `${D.name}_재고현황_${day}.xlsx`);
   });
 
   $('dl').addEventListener('click', () => {

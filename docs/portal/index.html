@@ -154,6 +154,8 @@
   .stock-tabs { display:flex; gap:4px; border-bottom:1px solid var(--line); margin:-4px 0 12px; flex-wrap:wrap; }
   .stock-tabs button { border:0; background:none; padding:10px 16px; font-size:1.02rem; font-weight:700; color:var(--muted); border-bottom:3px solid transparent; margin-bottom:-1px; cursor:pointer; white-space:nowrap; }
   .stock-tabs button[aria-selected=true] { color:var(--accent); border-bottom-color:var(--accent); }
+  #tab-count .frame, #tab-adj .frame { max-height:28rem; overflow:auto; overscroll-behavior:contain; }   /* 품목이 많으면 표 안에서 스크롤 */
+  #tab-count .stock th, #tab-adj .stock th { position:sticky; top:0; z-index:1; }
   .count-memo { margin:12px 0 0; padding:10px 14px; background:var(--head); border-radius:var(--radius); font-size:13.5px; }
   .count-memo b { color:var(--muted); margin-right:10px; font-size:12.5px; }
   .count-table td.d { color:var(--faint); } .count-table td.d.on { color:var(--warn); font-weight:700; } .count-table tr.hl td { background:var(--warn-soft); }

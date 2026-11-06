@@ -579,12 +579,14 @@
   };
 
   // ---------- 일자별 재고 ----------
-  const STOCK_DATE = ['탄천갈매기'];   // 일자별 조회를 켤 고객사. 재고 단위와 입출고 단위가 같은 고객사만 넣는다
-  const stockDateOn = () => !D.stock_only && STOCK_DATE.includes(D.name);   // 재고만 보는 계정(점주용)은 입출고 내역이 없어 제외
+  const stockDateOn = () => !D.stock_only;   // 재고만 보는 계정(점주용)은 입출고 내역이 없어 제외
   let stockDate = '';                  // 비어 있으면 현재고
   // ---------- 정기 재고조사·재고 조정 탭 ----------
-  const STOCK_TABS = ['탄천갈매기'];   // 탭을 켤 고객사. 재고만 보는 계정(점주용)은 제외
-  const stockTabsOn = () => !D.stock_only && STOCK_TABS.includes(D.name);
+  const stockTabsOn = () => !D.stock_only;   // 재고만 보는 계정(점주용)은 제외
+  // 재고 조정: 수불 양식은 구분이 '조정'이고, 입고·출고내역 양식은 점포 칸에 '재고 조정'이라고 적은 출고로 기록한다
+  const isAdj = (r) => r['구분'] === '조정' || (r['구분'] === '출고' && String(r['점포'] || '').replace(/\s/g, '').includes('조정'));
+  const stockQty = (r) => r['재고수량'] ?? r['수량'];   // 화면에 박스로 바꿔 보여 주는 출고도 재고 계산은 원래 수량으로
+  const adjQty = (r) => (r['구분'] === '조정' ? r['수량'] : -stockQty(r));
   const perOf = (n) => (D.stock.find((s) => s['품목'] === n) || {});
   function qtyEl(n, q) {
     const s = perOf(n), td = el('td', 'c');
@@ -628,7 +630,7 @@
     const box = $('adj-body'), months = Number($('adj-range').value), item = $('adj-item').value;
     let from = '';
     if (months) { const e = new Date(D.asof + 'T00:00:00'); from = iso(new Date(e.getFullYear(), e.getMonth() - months + 1, 1)); }
-    const rows = D.rows.filter((r) => r['구분'] === '조정' && (!from || r['일자'] >= from) && (!item || r['품목'] === item)).sort((a, b) => (a['일자'] < b['일자'] ? 1 : -1));
+    const rows = D.rows.filter((r) => isAdj(r) && (!from || r['일자'] >= from) && (!item || r['품목'] === item)).sort((a, b) => (a['일자'] < b['일자'] ? 1 : -1));
     if (!rows.length) { box.replaceChildren(el('div', 'tab-empty', '조정 내역이 없습니다.')); return; }
     const grid = el('div', 'adj-grid');
     [['조정 건수', `${rows.length}건`], ['조정 품목', `${new Set(rows.map((r) => r['품목'])).size}개`], ['최근 조정일', `${rows[0]['일자']} (${wd(rows[0]['일자'])})`]].forEach(([k, v]) => { const d = el('div'); d.append(el('span', '', k), el('b', '', v)); grid.append(d); });
@@ -636,8 +638,8 @@
     rows.forEach((r) => {
       const after = stockAt(r['일자']).find((s) => s['품목'] === r['품목']), q = after ? after['수량'] : 0;
       const tr = el('tr'), nm = el('td', 'l'); nm.append(el('div', 'name', r['품목']));
-      const k = el('td', 'c'); k.append(el('span', `chip ${r['수량'] < 0 ? 'warn' : 'ok'}`, r['수량'] < 0 ? '부족' : '초과'));
-      tr.append(el('td', 'c', `${r['일자'].slice(5).replace('-', '/')} (${wd(r['일자'])})`), nm, qtyEl(r['품목'], q - r['수량']), qtyEl(r['품목'], q), el('td', 'c', diffText(r['품목'], r['수량'])), k, el('td', 'l why', r['비고'] || '-'));
+      const dq = adjQty(r), k = el('td', 'c'); k.append(el('span', `chip ${dq < 0 ? 'warn' : 'ok'}`, dq < 0 ? '부족' : '초과'));
+      tr.append(el('td', 'c', `${r['일자'].slice(5).replace('-', '/')} (${wd(r['일자'])})`), nm, qtyEl(r['품목'], q - dq), qtyEl(r['품목'], q), el('td', 'c', diffText(r['품목'], dq)), k, el('td', 'l why', r['비고'] || '-'));
       tb.append(tr);
     });
     box.replaceChildren(grid, frame);
@@ -653,7 +655,7 @@
     $('stock-tabs').hidden = !on;
     if (on) {
       $('c-day').replaceChildren(...(D.count || []).map((c) => new Option(`${Number(c['일자'].slice(0, 4))}년 ${Number(c['일자'].slice(5, 7))}월 ${Number(c['일자'].slice(8))}일 (${wd(c['일자'])})`, c['일자'])));
-      const names = [...new Set(D.rows.filter((r) => r['구분'] === '조정').map((r) => r['품목']))];
+      const names = [...new Set(D.rows.filter(isAdj).map((r) => r['품목']))];
       $('adj-item').replaceChildren(new Option('전체', ''), ...names.map((n) => new Option(n, n)));
     }
     setStockTab('stock');
@@ -662,12 +664,11 @@
   $('c-day').addEventListener('change', renderCount);
   ['adj-range', 'adj-item'].forEach((id) => $(id).addEventListener('change', renderAdj));
 
-  const STOCK_DL = ['탄천갈매기'];     // 재고 다운로드를 열어 줄 고객사(화면 이름). 테스트 계정에는 전부 보인다. 재고만 보는 계정은 제외
   let stockList = [];                  // 지금 화면에 보이는 날짜의 품목 목록
   function stockAt(day) {              // 현재고에서 조회 일자 이후의 입출고를 되돌려 그날 끝 재고를 구한다
     const back = {};
     for (const r of D.rows) {
-      if (r['일자'] > day) back[r['품목']] = (back[r['품목']] || 0) + (r['구분'] === '출고' ? r['수량'] : -r['수량']);
+      if (r['일자'] > day) back[r['품목']] = (back[r['품목']] || 0) + (r['구분'] === '출고' ? stockQty(r) : -r['수량']);
     }
     return D.stock.map((s) => {
       const q = Math.round((s['수량'] + (back[s['품목']] || 0)) * 100) / 100;
@@ -740,7 +741,7 @@
     $('d-checked').textContent = D.checked;
     $('s-q').value = ''; $('s-status').value = '';
     $('s-date-box').hidden = !stockDateOn();
-    $('stock-dl').hidden = !(isTest() || (!D.stock_only && STOCK_DL.includes(D.name)));
+    $('stock-dl').hidden = !!D.stock_only;   // 재고만 보는 계정은 제외
     $('s-date').min = D.from || ''; $('s-date').max = D.asof;
     setStockDate('');
     setupStockTabs();

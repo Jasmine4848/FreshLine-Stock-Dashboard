@@ -215,31 +215,90 @@ def build(cfg, base_dir, with_items=False):
 
 
 # ---------- 정기 재고조사 ----------
-def stock_counts(cfg, stock, rows, items, base_dir):
-    """재고조사내역 시트에서 실사재고를 입력한 회차만 읽어, 그날 끝 대시보드 재고와 비교한다. 운영 중단 품목은 뺀다. 최신 회차가 앞."""
-    try:
-        ws = openpyxl.load_workbook(os.path.join(base_dir, cfg['file']), data_only=True)['재고조사내역']
-    except Exception:
-        return []
-    head = {s(ws.cell(4, c).value): c for c in range(1, ws.max_column + 1) if s(ws.cell(4, c).value)}
-    memo_col, date_col = head.get('비고'), head.get('조사일')
-    if not date_col: return []
-    op = {it['품목']: it['기초'] for it in items}
-    out = []
-    for r in range(6, ws.max_row + 1):
-        day = d(ws.cell(r, date_col).value)
+COUNT_SHEETS = ('재고조사내역', '재고조사', '주간재고')    # 고객사마다 시트 이름이 조금씩 다르다
+
+def day_of(v):
+    """셀 값을 날짜 문자열로. 날짜 셀이 아니면 '2026-10-29 ...' 처럼 시작하는 글자만 인정한다."""
+    if d(v): return d(v)
+    t = s(v)[:10]
+    try: return dt.date.fromisoformat(t).isoformat()
+    except ValueError: return None
+
+def count_put(out, day, name, real):
+    if day and name and isinstance(real, (int, float)) and not isinstance(real, bool):
+        out.setdefault(day, {'메모': '', '품목': {}})['품목'][name] = real
+
+def counts_by_row(ws, hr, date_col, out):
+    """조사일이 세로로 쌓이는 양식: hr 줄에 품목 이름(한 품목당 전산·실사·차이 3칸), 날짜 줄마다 실사재고"""
+    head = {s(ws.cell(hr, c).value): c for c in range(1, ws.max_column + 1) if s(ws.cell(hr, c).value)}
+    memo_col = head.get('비고')
+    names = {n: c for n, c in head.items() if c > date_col and n != '비고'}
+    for r in range(hr + 2, ws.max_row + 1):
+        day = day_of(ws.cell(r, date_col).value)
         if not day: continue
+        for n, c in names.items(): count_put(out, day, n, ws.cell(r, c + 1).value)
+        if memo_col and day in out: out[day]['메모'] = s(ws.cell(r, memo_col).value)
+
+def counts_by_col(ws, hr, name_col, out):
+    """조사일이 가로로 늘어서는 양식: hr 줄에 날짜(날짜당 전산·실사·차이 3칸), 줄마다 품목, 맨 아래 비고 줄"""
+    days = {c: day_of(ws.cell(hr, c).value) for c in range(name_col + 1, ws.max_column + 1)}
+    days = {c: v for c, v in days.items() if v}
+    for r in range(hr + 2, ws.max_row + 1):
+        n = s(ws.cell(r, name_col).value)
+        for c, day in days.items():
+            count_put(out, day, n, ws.cell(r, c + 1).value)
+        if not n and s(ws.cell(r, 2).value) == '비고':
+            for c, day in days.items():
+                if day in out: out[day]['메모'] = s(ws.cell(r, c).value)
+
+def counts_weekly(ws, out):
+    """주간재고 양식(두투미): ① 전산재고 / ② 실사재고 / ③ 차이 표가 위아래로 있고 ② 표만 읽는다"""
+    top = next(r for r in range(1, ws.max_row + 1) if s(ws.cell(r, 2).value).startswith('②'))
+    hr = top + 1
+    days = {c: day_of(ws.cell(hr, c).value) for c in range(5, ws.max_column + 1)}
+    days = {c: v for c, v in days.items() if v}
+    for r in range(hr + 1, ws.max_row + 1):
+        if s(ws.cell(r, 2).value).startswith('③'): break
+        n = s(ws.cell(r, 3).value)
+        for c, day in days.items(): count_put(out, day, n, ws.cell(r, c).value)
+
+def read_counts(wb):
+    """재고조사 시트에서 실사재고를 입력한 값만 {일자: {'메모', '품목': {이름: 실사}}} 로 읽는다. 시트가 없으면 빈 값."""
+    name = next((n for n in COUNT_SHEETS if n in wb.sheetnames), None)
+    if not name: return {}
+    ws, out = wb[name], {}
+    if name == '주간재고':
+        counts_weekly(ws, out); return out
+    for r in range(1, min(ws.max_row, 10) + 1):
+        vals = {c: ws.cell(r, c).value for c in range(1, ws.max_column + 1)}
+        date_col = next((c for c, v in vals.items() if s(v).startswith('조사일')), None)
+        if date_col:
+            counts_by_row(ws, r, date_col, out); return out
+        if any(day_of(v) for v in vals.values()):
+            name_col = next(c for c, v in vals.items() if s(v) == '품목명')
+            counts_by_col(ws, r, name_col, out); return out
+    return out
+
+def stock_counts(cfg, stock, rows, items, base_dir):
+    """재고조사 시트에서 실사재고를 입력한 회차만 읽어, 그날 끝 대시보드 재고와 비교한다. 운영 중단 품목은 뺀다. 조회 시작일 이전 회차도 뺀다. 최신 회차가 앞."""
+    try:
+        rounds = read_counts(openpyxl.load_workbook(os.path.join(base_dir, cfg['file']), data_only=True))
+    except Exception as e:
+        print(cfg['name'], '재고조사 시트를 못 읽어 생략:', e); return []
+    op = {it['품목']: it['기초'] for it in items}
+    sign = {'입고': 1, '출고': -1, '조정': 1}
+    out = []
+    for day, c in rounds.items():
+        if day < rows_from(cfg): continue
         lines = []
         for st in stock:
-            c = head.get(st['품목'])
-            real = ws.cell(r, c + 1).value if c else None
-            if not isinstance(real, (int, float)): continue
+            real = c['품목'].get(st['품목'])
+            if real is None: continue
             mine = [x for x in rows if x['품목'] == st['품목'] and cfg['start'] <= x['일자'] <= day]
-            sign = {'입고': 1, '출고': -1, '조정': 1}
             book = round(op.get(st['품목'], 0) + sum(sign[x['구분']] * x['수량'] for x in mine), 2)
             lines.append({'품목': st['품목'], '전산': book, '실사': real})
         if lines:
-            out.append({'일자': day, '메모': s(ws.cell(r, memo_col).value) if memo_col else '', '품목': lines})
+            out.append({'일자': day, '메모': c['메모'], '품목': lines})
     return sorted(out, key=lambda x: x['일자'], reverse=True)
 
 
@@ -323,7 +382,9 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
 def show_row(r):
     """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로)."""
     r = dict(r); box = r.pop('박스', None)
-    if r['구분'] == '출고' and box is not None: r['수량'], r['단위'] = box, '박스'
+    if r['구분'] == '출고' and box is not None:
+        r['재고수량'] = r['수량']               # 지난 날짜 재고를 되돌려 계산할 때는 팩 수량이 필요하다
+        r['수량'], r['단위'] = box, '박스'
     return r
 
 def encrypt(payload, password, cid=''):
@@ -352,7 +413,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
-        if cfg['kind'] == 'pack_ledger' and not cfg.get('stock_only'):
+        if not cfg.get('stock_only'):
             payload['count'] = stock_counts(cfg, stock, rows, items, base_dir)
         if cfg.get('stock_only'):               # 재고만 보는 계정(예: 가맹점주): 입출고 내역·배송료는 암호화 데이터에도 넣지 않는다
             payload.update(rows=[], fee=None, stock_only=True)

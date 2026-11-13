@@ -347,6 +347,9 @@ def fee_lines_ledger(f, items, rows):
         why = fixed or next((w for w in FEE_SKIP if w in memo), None)
         if why and not fixed and any(k in memo for k in FEE_KEEP): why = None
         if why and any(x.get('일자') == r['일자'] and x.get('품목') == r['품목'] for x in f.get('force_include', [])): why = None   # 사용자가 넣으라고 한 건
+        if not why:                                                                                                        # 사용자가 빼라고 한 건(재고 조정 등)
+            ex = next((x for x in f.get('force_exclude', []) if x.get('일자') == r['일자'] and x.get('품목') == r['품목'] and (not x.get('점포') or x['점포'] == store)), None)
+            if ex: fixed = why = ex.get('사유') or '재고 조정'
         if why:
             out.append({'d': r['일자'], 's': store, 'i': r['품목'], 'q': r['수량'], 'u': r['단위'], 'a': 0, 'x': why if fixed else memo}); continue
         if f.get('unit', '박스') == '박스':

@@ -136,6 +136,7 @@ LAYOUT = {
     'pack_info': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'PK'},
     'pack_ledger': {'date': 1, 'kind': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'PK', 'sheet': '수불내역'},   # 입고·출고·조정을 한 시트에 쓰는 양식
     'brand_pack': {'date': 1, 'store': 2, 'item': 3, 'box': 4, 'qty': 5, 'base': 'PK'},
+    'box_ledger': {'date': 1, 'kind': 2, 'store': 3, 'item': 4, 'unit': 5, 'qty': 6, 'base': 'BOX', 'sheet': '수불내역'},   # 표준(박스) 양식을 한 시트로 합친 것
     'store_first': {'date': 1, 'store': 2, 'item': 3, 'unit': 4, 'qty': 5, 'base': 'BOX'},
 }
 

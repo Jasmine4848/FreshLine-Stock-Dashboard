@@ -49,6 +49,21 @@ def unit_of(v, default):
 
 
 # ---------- 양식별 읽기 ----------
+def load_box_ledger(wb, cfg):
+    """표준 양식(박스)인데 입고·출고·조정을 한 시트에 쓰는 것: 입출고현황은 표준과 같고, 수불내역 A 일자, B 구분, C 점포명, D 품목명, E 규격, F 수량(조정은 부족이 음수), G 비고"""
+    st = wb['입출고현황']
+    items = []
+    for r in range(8, st.max_row + 1):
+        n = s(st.cell(r, 2).value)
+        if not n: break
+        if n in ('합계', '소계'): continue
+        items.append({'품목': n, '단위': cfg.get('unit', '박스'), '입수': None, '기초': num(st.cell(r, cfg['open_col']).value)})
+    rows = []
+    for r in wb['수불내역'].iter_rows(min_row=2, max_col=7, values_only=True):
+        if not d(r[0]) or not s(r[3]) or s(r[1]) not in ('입고', '출고', '조정'): continue
+        rows.append({'일자': d(r[0]), '구분': s(r[1]), '점포': s(r[2]), '품목': s(r[3]), '수량': num(r[5]), '단위': unit_of(r[4], cfg.get('unit', '박스')), '비고': s(r[6])})
+    return items, rows
+
 def load_standard(wb, cfg):
     """표준 양식: 입출고현황(B 품목, [C 단위], 기초재고 열) / 입고내역 A~E / 출고내역 A 일자, B 브랜드, C 점포, D 품목, E 규격, F 수량, G 비고"""
     st = wb['입출고현황']
@@ -179,7 +194,7 @@ def load_single_ledger(wb, cfg):
         rows.append({'일자': d(r[0]), '구분': s(r[1]), '점포': '', '품목': s(r[3]), '수량': num(r[4]), '단위': '개', '비고': s(r[5])})
     return items, rows
 
-LOADERS = {'standard': load_standard, 'store_first': load_store_first, 'pack_info': load_pack_info, 'pack_ledger': load_pack_ledger, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger}
+LOADERS = {'standard': load_standard, 'store_first': load_store_first, 'pack_info': load_pack_info, 'pack_ledger': load_pack_ledger, 'brand_pack': load_brand_pack, 'pack6': load_pack6, 'single_ledger': load_single_ledger, 'box_ledger': load_box_ledger}
 
 
 # ---------- 계산 ----------

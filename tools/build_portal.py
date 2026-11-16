@@ -352,6 +352,35 @@ def fee_lines_sheet(f, base_dir):
     wb.close()
     return out
 
+def fee_extra_sheet(f, base_dir):
+    """배송현황 파일 '전체' 시트 위쪽의 '■ 별도 청구 건' 칸(용차 비용 등, 배송료와 따로 청구)을 읽는다.
+    모양: [■ 별도 청구 건 (n)] / 아래 줄 제목(예: 고삼농협 용차 비용) / 청구 건수 n / 비용 합계 금액 / 그 아래 날짜들(오른쪽 칸에 금액을 적었으면 그 금액).
+    이 칸은 엑셀의 조회기간(D2~E2) 것만 담고 있으므로 (조회기간, 줄들)을 돌려주고, 지난 기간 것은 main 에서 이전 데이터와 합친다.
+    칸이 없는 파일이면 None."""
+    src = f['source']
+    wb = openpyxl.load_workbook(os.path.join(base_dir, src['file']), data_only=True, read_only=True)
+    top = [list(r) for r in wb['전체'].iter_rows(min_row=1, max_row=16, max_col=12, values_only=True)]
+    wb.close()
+    pos = next(((i, j) for i, r in enumerate(top) for j, v in enumerate(r) if isinstance(v, str) and '별도 청구' in v), None)
+    if not pos: return None
+    i, j = pos
+    cell = lambda r, c: top[r][c] if r < len(top) and c < len(top[r]) else None
+    dates = [v for r in top[:4] for v in r if isinstance(v, dt.datetime)]
+    period = (min(dates).date().isoformat(), max(dates).date().isoformat()) if dates else None
+    title = s(cell(i + 1, j))
+    total, lines = 0, []
+    for r in range(i + 1, len(top)):
+        v, w = cell(r, j), cell(r, j + 1)
+        if isinstance(v, str) and '합계' in v and isinstance(w, (int, float)): total = w
+        if isinstance(v, dt.datetime): lines.append([v.date().isoformat(), w if isinstance(w, (int, float)) else None])
+    if not total and not lines: return period, []
+    kind = '용차 비용' if '용차' in title else '별도 청구'
+    what = title.replace('용차 비용', '').replace('용차비', '').replace('용차', '').strip() if '용차' in title else title
+    if not lines: lines = [[period[1] if period else '', None]]
+    rest = total - sum(a for _, a in lines if a)                     # 금액을 안 적은 날짜에는 남은 금액을 똑같이 나눈다
+    blank = sum(1 for _, a in lines if a is None)
+    return period, [{'d': d0, 'k': kind, 's': what, 'a': round(a if a is not None else (rest / blank if blank else 0))} for d0, a in lines]
+
 def fee_lines_ledger(f, items, rows):
     per = {it['품목']: it['입수'] for it in items}
     out = []
@@ -393,6 +422,14 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
     a = max(a, dt.date.fromisoformat(rf))
     cur = [x for x in lines if a.isoformat() <= x['d'] <= b.isoformat()]
     unit = f.get('unit', '박스') if not f.get('source') else '박스'
+    extra = None
+    if f.get('source'):
+        try: extra = fee_extra_sheet(f, base_dir)
+        except Exception as e: print(cfg['id'], '별도 청구 칸을 못 읽음:', e)
+    if extra:
+        return {'cycle': f.get('cycle', 'month'), 'price': f['price'], 'unit': unit, 'from': a.isoformat(), 'to': b.isoformat(),
+                'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
+                'unknown': [], 'lines': lines, 'extra': extra[1], 'extra_period': extra[0]}
     return {'cycle': f.get('cycle', 'month'), 'price': f['price'], 'unit': unit, 'from': a.isoformat(), 'to': b.isoformat(),
             'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
             'unknown': [], 'lines': lines}
@@ -431,6 +468,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
         payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        keep_extra(payload, os.path.join(out_dir, id_hash(cfg['id']) + '.json'), pws[cfg['id']])
         if not cfg.get('stock_only'):
             payload['count'] = stock_counts(cfg, stock, rows, items, base_dir)
         if cfg.get('stock_only'):               # 재고만 보는 계정(예: 가맹점주): 입출고 내역·배송료는 암호화 데이터에도 넣지 않는다
@@ -447,6 +485,18 @@ def main(base_dir, cfg_file, out_dir, only=None):
                 results.append((adm['id'], f'관리자 화면 실패: {e}'))
     for r in results: print(r)
     return results
+
+def keep_extra(payload, path, password):
+    """별도 청구(용차 등): 엑셀에는 지금 조회기간 것만 있으므로, 이전에 올린 데이터에 있던 다른 기간의 별도 청구는 그대로 이어 붙인다."""
+    fee = payload.get('fee')
+    if not fee or 'extra' not in fee: return
+    period = fee.pop('extra_period', None)
+    old = []
+    try: old = (decrypt_file(path, password).get('fee') or {}).get('extra') or []
+    except Exception: pass
+    if period: old = [x for x in old if not (period[0] <= x.get('d', '') <= period[1])]
+    else: old = []
+    fee['extra'] = sorted(old + fee['extra'], key=lambda x: x['d'])
 
 def decrypt_file(path, password):
     blob = json.load(open(path))

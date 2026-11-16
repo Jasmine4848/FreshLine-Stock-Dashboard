@@ -174,6 +174,18 @@
   .fee-filters { margin:2px 0 12px; }
   .fee-filters select { min-width:13rem; }
   .fee-filters select, .fee-filters .datebox { height:38px; box-sizing:border-box; padding-top:0; padding-bottom:0; }
+  .fee-sum { border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; }
+  .fee-sum table { table-layout:fixed; }
+  .fee-sum th { background:var(--head); color:var(--muted); font-size:12px; font-weight:700; text-align:left; padding:8px 16px; }
+  .fee-sum td { padding:11px 16px; border-top:1px solid var(--line); }
+  .fee-sum .r { text-align:right; }
+  .fee-sum .w-k { width:9.5rem; } .fee-sum .w-d { width:6.5rem; } .fee-sum .w-a { width:9.5rem; }
+  .fee-sum .tag { display:inline-block; padding:2px 9px; border-radius:var(--radius); font-size:12.5px; font-weight:700; background:var(--accent-soft); color:var(--accent); }
+  .fee-sum .tag.extra { background:var(--warn-soft); color:var(--warn); }
+  .fee-sum td.amt { font-weight:700; }
+  .fee-sum tr.total td { background:var(--accent-soft); font-weight:700; }
+  .fee-sum tr.total td.amt { color:var(--accent); font-size:1.15rem; }
+  .fee-sum small { font-size:12.5px; font-weight:400; color:var(--muted); margin-left:2px; }
   .fee-ex { margin-top:10px; font-size:12.5px; color:var(--muted); }
   .fee-ex summary { cursor:pointer; width:max-content; }
   .fee-ex ul { list-style:none; margin:8px 0 0; padding:8px 12px; background:var(--head); border-radius:var(--radius); line-height:1.7; max-height:10rem; overflow:auto; font-size:12px; }
@@ -388,7 +400,13 @@
           <span class="tilde fee-custom" hidden>~</span>
           <div class="f fee-custom" hidden><label for="fee-to">종료일</label><span class="datebox"><span id="fee-to-text"></span><input type="date" id="fee-to" aria-label="배송료 종료일"></span></div>
         </div>
-        <div class="fee-grid">
+        <div class="fee-sum" id="fee-sum" hidden>
+          <table>
+            <thead><tr><th class="w-k">항목</th><th class="w-d">일자</th><th>내용</th><th class="r w-a">금액</th></tr></thead>
+            <tbody id="fee-sum-body"></tbody>
+          </table>
+        </div>
+        <div class="fee-grid" id="fee-grid">
           <div class="fee-cell"><span class="k">정산 기간</span><span class="v" id="fee-period"></span></div>
           <div class="fee-cell"><span class="k">출고 수량</span><span class="v" id="fee-qty"></span></div>
           <div class="fee-cell"><span class="k" id="fee-price-k">박스당 배송료</span><span class="v" id="fee-price"></span></div>
@@ -825,15 +843,28 @@
     document.querySelectorAll('.fee-custom').forEach((x) => { x.hidden = !custom; });
     let [a, b] = custom ? [$('fee-from').value, $('fee-to').value] : v.split('|');
     if (custom && a && b && a > b) [a, b] = [b, a];
+    const md = (x) => (x ? x.slice(5).replace('-', '/') : '');
     const START = D.from || '2026-10-01';   // 조회 시작일 이전은 정산하지 않는다
     if (!a || a < START) a = START;
     $('fee-from-text').textContent = $('fee-from').value || '-'; $('fee-to-text').textContent = $('fee-to').value || '-';
-    const md = (x) => (x ? x.slice(5).replace('-', '/') : '');
     const inR = F.lines.filter((x) => (!a || x.d >= a) && (!b || x.d <= b));
     const used = inR.filter((x) => !x.x), ex = inR.filter((x) => x.x);
     const qty = used.reduce((t, x) => t + x.q, 0), total = used.reduce((t, x) => t + x.a, 0);
-    feeView = { a, b, used, ex, qty, total };
-    $('fee-dl').disabled = !inR.length;
+    // 별도 청구(용차 비용 등)가 있는 고객사는 요약 칸 대신 정산 표로 보여 준다: 일반 출고 한 줄 + 별도 청구 줄들 + 합계
+    const hasExtra = Array.isArray(F.extra);
+    const extra = hasExtra ? F.extra.filter((x) => (!a || x.d >= a) && (!b || x.d <= b)) : [];
+    const extraTotal = extra.reduce((t, x) => t + x.a, 0);
+    feeView = { a, b, used, ex, qty, total, extra, extraTotal };
+    $('fee-grid').hidden = hasExtra; $('fee-sum').hidden = !hasExtra;
+    if (hasExtra) {
+      const won = (n) => { const td = el('td', 'r amt'); td.append(fmt(Math.round(n)), el('small', '', '원')); return td; };
+      const row = (cls, tag, tagCls, d, what, n) => { const tr = el('tr', cls), k = el('td', ''); k.append(tagCls === null ? tag : el('span', 'tag' + tagCls, tag)); tr.append(k, el('td', '', d), el('td', '', what), won(n)); return tr; };
+      $('fee-sum-body').replaceChildren(
+        row('', '일반 출고', '', '', `총 ${fmt(qty)}${F.unit}`, total),
+        ...extra.map((x) => row('', x.k, ' extra', md(x.d), x.s, x.a)),
+        row('total', '합계', null, '', '', total + extraTotal));
+    }
+    $('fee-dl').disabled = !inR.length && !extra.length;
     $('fee-period').textContent = a && b ? `${md(a)} ~ ${md(b)}` : '-';
     $('fee-qty').textContent = `${fmt(qty)}${F.unit}`;
     $('fee-price-k').textContent = `${F.unit}당 배송료`;
@@ -940,7 +971,7 @@
     await loadXlsxStyle();
     btn.disabled = false;
     if (typeof XLSX === 'undefined') { label.textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
-    const { a, b, used, ex, qty, total } = feeView, F = D.fee;
+    const { a, b, used, ex, qty, total, extra, extraTotal } = feeView, F = D.fee;
     const title = `${D.name} 배송료 정산내역`, meta = `정산 기간 ${a} ~ ${b} · (주)프레시라인`;
     const merge = (r, c1, c2) => ({ s: { r, c: c1 }, e: { r, c: c2 } });
     const hasItem = [...used, ...ex].some((x) => x.i);      // 배송현황에 품목이 있는 고객사(두투미)는 품목 열을 넣는다
@@ -948,7 +979,11 @@
     const unitPrice = (x) => (x.q ? Math.round(x.a / x.q) : F.price);
     const last = hasItem ? 5 : 4;
     const rows = [[title], [meta], [], ['일자', '거래처', ...(hasItem ? ['품목'] : []), `${F.unit} 수`, '단가(원)', '금액(원)'],
-      ...used.map((x) => [x.d, x.s, ...it(x), x.q, unitPrice(x), Math.round(x.a)]), ['합계', ...(hasItem ? ['', ''] : ['']), qty, '', Math.round(total)]];
+      ...used.map((x) => [x.d, x.s, ...it(x), x.q, unitPrice(x), Math.round(x.a)]),
+      // 별도 청구(용차 비용 등)가 있으면: 일반 출고 소계 → 별도 청구 줄(품목 칸에 항목 이름) → 전체 합계
+      ...(extra.length ? [['일반 출고 소계', ...(hasItem ? ['', ''] : ['']), qty, '', Math.round(total)],
+        ...extra.map((x) => [x.d, hasItem ? x.s : `${x.k} · ${x.s}`, ...(hasItem ? [x.k] : []), '', '', Math.round(x.a)])] : []),
+      ['합계', ...(hasItem ? ['', ''] : ['']), extra.length ? '' : qty, '', Math.round(total + extraTotal)]];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, feeSheet(rows, [13, 22, ...(hasItem ? [24] : []), 10, 11, 13], [merge(0, 0, last), merge(1, 0, last), merge(rows.length - 1, 0, last - 3)], [last - 2, last - 1, last], true), '배송료정산');
     if (ex.length) {                 // 합계에서 뺀 출고가 있는 기간에만 시트를 만든다

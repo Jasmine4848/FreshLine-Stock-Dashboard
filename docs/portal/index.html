@@ -860,8 +860,8 @@
       const won = (n) => { const td = el('td', 'r amt'); td.append(fmt(Math.round(n)), el('small', '', '원')); return td; };
       const row = (cls, tag, tagCls, d, what, n) => { const tr = el('tr', cls), k = el('td', ''); k.append(tagCls === null ? tag : el('span', 'tag' + tagCls, tag)); tr.append(k, el('td', '', d), el('td', '', what), won(n)); return tr; };
       $('fee-sum-body').replaceChildren(
-        row('', '일반 출고', '', '', `총 ${fmt(qty)}${F.unit}`, total),
-        ...extra.map((x) => row('', x.k, ' extra', md(x.d), x.s, x.a)),
+        row('', '일반 출고', null, '', `${fmt(qty)}${F.unit}`, total),
+        ...extra.map((x) => row('', x.k, null, md(x.d), x.s, x.a)),
         row('total', '합계', null, '', '', total + extraTotal));
     }
     $('fee-dl').disabled = !inR.length && !extra.length;

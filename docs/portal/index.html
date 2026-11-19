@@ -534,7 +534,7 @@
     $('bar-sub').textContent = '관리자'; $('back-admin').hidden = true;
     $('dash-view').classList.add('admin-mode'); $('admin-panel').hidden = false;
     const C = A.clients, md = (x) => x.slice(5).replace('-', '/');
-    $('a-count').textContent = C.length; $('a-checked').textContent = A.checked;
+    $('a-count').textContent = C.filter((c) => !c.stock_only).length;   // 가맹점용(재고만) 계정은 고객사 수에서 뺀다 $('a-checked').textContent = A.checked;
     $('a-body').replaceChildren(...C.map((c, i) => {
       const tr = el('tr');
       const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => { history.pushState({ client: c.account }, '', '#' + encodeURIComponent(c.account)); openClient(i); }); nm.append(b);
@@ -544,7 +544,7 @@
         el('td', 'c', c.fee ? `${md(c.fee.from)} ~ ${md(c.fee.to)}` : '-'), el('td', 'r', c.fee ? `${fmt(c.fee.total)}원` : '-'), el('td', 'c', c.account));
       return tr;
     }));
-    $('a-watch').replaceChildren(...C.filter((c) => c.stock.some((s) => s['상태'] !== '여유')).map((c) => {
+    $('a-watch').replaceChildren(...C.filter((c) => !c.stock_only && c.stock.some((s) => s['상태'] !== '여유')).map((c) => {   // 가맹점용은 본 계정과 같은 재고라 중복이어서 뺀다
       const box = el('div', 'w'); box.append(el('b', '', c.name));
       for (const [st, cls] of [['품절', 'b'], ['품절 예정', 'wn']]) {
         const names = c.stock.filter((s) => s['상태'] === st).map((s) => s['품목']);

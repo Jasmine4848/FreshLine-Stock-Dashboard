@@ -508,15 +508,19 @@ def build_admin(adm, clients, pws, built, out_dir, checked):
     """관리자 계정: 모든 고객사 데이터를 한 파일에 담는다(이번에 안 만든 고객사는 기존 파일을 풀어서 쓴다). 시험용 계정(test)은 뺀다."""
     out = []
     for c in clients:
-        if c.get('kind') == 'admin' or c.get('test') or c.get('stock_only') or c.get('portal') is False or c['id'] not in pws: continue
+        if c.get('kind') == 'admin' or c.get('test') or c.get('portal') is False or c['id'] not in pws: continue
         pl = built.get(c['id'])
         path = os.path.join(out_dir, id_hash(c['id']) + '.json')
         if pl is None and os.path.exists(path):
             try: pl = decrypt_file(path, pws[c['id']])
             except Exception: pl = None
         if pl is None: continue
-        pl = dict(pl, account=c['id'])
+        pl = dict(pl, account=c['id'], file=c.get('file'))
+        if c.get('stock_only'): pl['name'] = c.get('admin_name') or pl['name'] + ' (가맹점용)'   # 재고만 보는 계정(점주용)은 이름을 구분해 본 계정 바로 아래에
         out.append(pl)
+    main_of = {x['file']: i for i, x in enumerate(out) if not x.get('stock_only')}
+    out = sorted(out, key=lambda x: (main_of.get(x['file'], len(out)) if x.get('stock_only') else out.index(x), bool(x.get('stock_only'))))
+    for x in out: x.pop('file', None)
     payload = {'admin': True, 'name': adm.get('name', '관리자'), 'checked': checked, 'low': LOW_BOX,
                'schedule': adm.get('schedule', []), 'clients': out}
     json.dump(encrypt(payload, adm['pw'], adm['id']), open(os.path.join(out_dir, id_hash(adm['id']) + '.json'), 'w'))

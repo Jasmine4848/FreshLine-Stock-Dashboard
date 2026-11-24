@@ -435,7 +435,7 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
 def show_row(r):
     """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로)."""
     r = dict(r); box = r.pop('박스', None)
-    if r['구분'] == '출고' and box is not None:
+    if r['구분'] == '출고' and box:              # 박스 0(낱팩만 출고)이면 팩 수량 그대로 보여 준다
         r['재고수량'] = r['수량']               # 지난 날짜 재고를 되돌려 계산할 때는 팩 수량이 필요하다
         r['수량'], r['단위'] = box, '박스'
     return r

@@ -1020,9 +1020,17 @@
   $('dl').addEventListener('click', () => {
     if (!D) return;
     if (typeof XLSX === 'undefined') { $('dl').textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
-    const rows = filtered().map((r) => ({ '일자': r['일자'], '구분': r['구분'], '점포명': r['점포'], '품목': r['품목'], '수량': r['수량'], '단위': r['단위'], '비고': r['비고'] }));
-    const ws = XLSX.utils.json_to_sheet(rows, { header: ['일자', '구분', '점포명', '품목', '수량', '단위', '비고'] });
-    ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 6 }, { wch: 30 }];
+    // 박스입수가 있는 고객사(팩·개 단위로 재고를 세는 양식)는 박스 수량과 팩 수량을 둘 다 적는다
+    const base = (D.stock.find((s) => s['입수'] && s['단위'] !== '박스') || {})['단위'];
+    const bq = `박스 수량`, pq = `${base} 수량`;
+    const both = (r) => {
+      const p = perOf(r['품목'])['입수'], pk = r['단위'] === '박스' ? (r['재고수량'] ?? (p ? r['수량'] * p : '')) : r['수량'];
+      const bx = r['박스수량'] ?? (r['단위'] === '박스' ? r['수량'] : (p && pk % p === 0 ? pk / p : ''));
+      return { [bq]: bx, [pq]: pk };
+    };
+    const rows = filtered().map((r) => ({ '일자': r['일자'], '구분': r['구분'], '점포명': r['점포'], '품목': r['품목'], '수량': r['수량'], '단위': r['단위'], ...(base ? both(r) : {}), '비고': r['비고'] }));
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['일자', '구분', '점포명', '품목', '수량', '단위', ...(base ? [bq, pq] : []), '비고'] });
+    ws['!cols'] = [{ wch: 12 }, { wch: 6 }, { wch: 22 }, { wch: 22 }, { wch: 8 }, { wch: 6 }, ...(base ? [{ wch: 10 }, { wch: 10 }] : []), { wch: 30 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '입출고내역');
     XLSX.writeFile(wb, `${D.name}_입출고내역_${$('f-from').value || '처음'}_${$('f-to').value || D.asof}.xlsx`);
   });

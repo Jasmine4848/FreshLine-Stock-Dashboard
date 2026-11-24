@@ -432,12 +432,17 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
             'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
             'unknown': [], 'lines': lines}
 
-def show_row(r):
-    """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로)."""
+def show_row(r, per=None):
+    """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로).
+    박스가 0이거나 팩 수량이 박스 × 입수와 맞지 않으면(낱팩 출고) 팩 수량 그대로 보여 준다.
+    엑셀 다운로드용으로 엑셀에 적힌 박스 수량('박스수량')은 항상 함께 보낸다."""
     r = dict(r); box = r.pop('박스', None)
-    if r['구분'] == '출고' and box:              # 박스 0(낱팩만 출고)이면 팩 수량 그대로 보여 준다
-        r['재고수량'] = r['수량']               # 지난 날짜 재고를 되돌려 계산할 때는 팩 수량이 필요하다
-        r['수량'], r['단위'] = box, '박스'
+    if r['구분'] == '출고' and box is not None:
+        r['박스수량'] = box
+        n = (per or {}).get(r['품목'])
+        if box and (not n or abs(box * n - r['수량']) < 1e-9):
+            r['재고수량'] = r['수량']               # 지난 날짜 재고를 되돌려 계산할 때는 팩 수량이 필요하다
+            r['수량'], r['단위'] = box, '박스'
     return r
 
 def encrypt(payload, password, cid=''):
@@ -465,7 +470,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r, {it['품목']: it['입수'] for it in items}) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
         keep_extra(payload, os.path.join(out_dir, id_hash(cfg['id']) + '.json'), pws[cfg['id']])
         if not cfg.get('stock_only'):
             payload['count'] = stock_counts(cfg, stock, rows, items, base_dir)

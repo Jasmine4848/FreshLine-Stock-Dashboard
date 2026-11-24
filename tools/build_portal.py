@@ -432,6 +432,11 @@ def fee_summary(cfg, items, rows, asof, base_dir=''):
             'qty': round(sum(x['q'] for x in cur if not x['x']), 2), 'total': round(sum(x['a'] for x in cur)),
             'unknown': [], 'lines': lines}
 
+def fee_vat(cfg, fee):
+    """설정 fee 에 "vat_included": true 가 있으면 화면에 '부가세 포함'이라고 적는다."""
+    if fee and cfg.get('fee', {}).get('vat_included'): fee['vat'] = True
+    return fee
+
 def show_row(r, per=None):
     """화면용 줄: 출고를 박스로 기록한 양식은 출고 수량을 박스로 바꿔 보여 준다(재고 계산은 팩 그대로).
     박스가 0이거나 팩 수량이 박스 × 입수와 맞지 않으면(낱팩 출고) 팩 수량 그대로 보여 준다.
@@ -470,7 +475,7 @@ def main(base_dir, cfg_file, out_dir, only=None):
             asof, stock, rows, items = build(cfg, base_dir, with_items=True)
         except Exception as e:  # 한 고객사 파일이 깨져도 나머지는 계속
             results.append((cfg['id'], f'실패: {e}')); continue
-        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r, {it['품목']: it['입수'] for it in items}) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_summary(cfg, items, rows, asof, base_dir)}
+        payload = {'name': cfg['name'], 'asof': asof, 'checked': checked, 'low': LOW_BOX, 'stock': stock, 'from': rows_from(cfg), 'rows': [show_row(r, {it['품목']: it['입수'] for it in items}) for r in rows if r['일자'] >= rows_from(cfg)], 'fee': fee_vat(cfg, fee_summary(cfg, items, rows, asof, base_dir))}
         keep_extra(payload, os.path.join(out_dir, id_hash(cfg['id']) + '.json'), pws[cfg['id']])
         if not cfg.get('stock_only'):
             payload['count'] = stock_counts(cfg, stock, rows, items, base_dir)

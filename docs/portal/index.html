@@ -410,7 +410,7 @@
           <div class="fee-cell"><span class="k">정산 기간</span><span class="v" id="fee-period"></span></div>
           <div class="fee-cell"><span class="k">출고 수량</span><span class="v" id="fee-qty"></span></div>
           <div class="fee-cell"><span class="k" id="fee-price-k">박스당 배송료</span><span class="v" id="fee-price"></span></div>
-          <div class="fee-cell total"><span class="k">배송료 합계</span><span class="v"><span id="fee-total"></span><small>원</small></span></div>
+          <div class="fee-cell total"><span class="k" id="fee-total-k">배송료 합계</span><span class="v"><span id="fee-total"></span><small>원</small></span></div>
         </div>
         <details class="fee-ex" id="fee-exbox"><summary id="fee-ex-sum"></summary><ul id="fee-ex"></ul></details>
       </section>
@@ -867,7 +867,8 @@
     $('fee-dl').disabled = !inR.length && !extra.length;
     $('fee-period').textContent = a && b ? `${md(a)} ~ ${md(b)}` : '-';
     $('fee-qty').textContent = `${fmt(qty)}${F.unit}`;
-    $('fee-price-k').textContent = `${F.unit}당 배송료`;
+    $('fee-price-k').textContent = `${F.unit}당 배송료${F.vat ? ' (부가세 포함)' : ''}`;
+    $('fee-total-k').textContent = `배송료 합계${F.vat ? ' (부가세 포함)' : ''}`;
     $('fee-price').textContent = `${F.price.toLocaleString('ko-KR')}원`;
     $('fee-total').textContent = fmt(Math.round(total));
     $('fee-note').textContent = b && b >= D.asof ? `${md(D.asof)} 출고분까지 집계` : '';
@@ -972,7 +973,7 @@
     btn.disabled = false;
     if (typeof XLSX === 'undefined') { label.textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
     const { a, b, used, ex, qty, total, extra, extraTotal } = feeView, F = D.fee;
-    const title = `${D.name} 배송료 정산내역`, meta = `정산 기간 ${a} ~ ${b} · (주)프레시라인`;
+    const title = `${D.name} 배송료 정산내역`, meta = `정산 기간 ${a} ~ ${b} · (주)프레시라인${F.vat ? ' · 금액은 부가세 포함' : ''}`;
     const merge = (r, c1, c2) => ({ s: { r, c: c1 }, e: { r, c: c2 } });
     const hasItem = [...used, ...ex].some((x) => x.i);      // 배송현황에 품목이 있는 고객사(두투미)는 품목 열을 넣는다
     const it = (x) => (hasItem ? [x.i] : []);

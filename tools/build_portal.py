@@ -318,8 +318,7 @@ def stock_counts(cfg, stock, rows, items, base_dir):
 
 
 # ---------- 배송료 ----------
-FEE_SKIP = ('특판', '오배송', '오출고', '폐기')           # 비고에 있으면 배송료에서 제외
-FEE_KEEP = ('재배송', '재출고', '교환')           # 단, 이 말이 함께 있으면 포함
+FEE_SKIP = '배송료 제외'                          # 비고에 이 문구가 있을 때만 배송료에서 제외(띄어쓰기 무시). 없으면 청구
 def fee_period(cycle, asof):
     d = dt.date.fromisoformat(asof)
     if cycle == 'half':                         # 1~15일, 16일~말일
@@ -388,8 +387,7 @@ def fee_lines_ledger(f, items, rows):
         if r['구분'] != '출고': continue
         memo, store = r['비고'] or '', r['점포'] or ''
         fixed = '모회사 출고' if '금산' in store else ('재고 조정' if '조정' in store.replace(' ', '') else None)
-        why = fixed or next((w for w in FEE_SKIP if w in memo), None)
-        if why and not fixed and any(k in memo for k in FEE_KEEP): why = None
+        why = fixed or (FEE_SKIP if FEE_SKIP.replace(' ', '') in memo.replace(' ', '') else None)
         if why and any(x.get('일자') == r['일자'] and x.get('품목') == r['품목'] for x in f.get('force_include', [])): why = None   # 사용자가 넣으라고 한 건
         if not why:                                                                                                        # 사용자가 빼라고 한 건(재고 조정 등)
             ex = next((x for x in f.get('force_exclude', []) if x.get('일자') == r['일자'] and x.get('품목') == r['품목'] and (not x.get('점포') or x['점포'] == store)), None)

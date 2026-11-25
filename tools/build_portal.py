@@ -485,9 +485,11 @@ def main(base_dir, cfg_file, out_dir, only=None):
         built[cfg['id']] = payload
         results.append((cfg['id'], asof, [(x['품목'], x['수량'], x['단위'], x['상태']) for x in stock], payload['fee'] and {k: payload['fee'][k] for k in ('from', 'to', 'qty', 'total', 'unknown')}))
     if built:                                   # 관리자 화면 데이터: 고객사 데이터가 하나라도 바뀌면 함께 다시 만든다
-        for adm in [c for c in clients if c.get('kind') == 'admin' and c.get('pw')]:
+        admins = [c for c in clients if c.get('kind') == 'admin' and c.get('pw')]
+        extra = order_data(clients, base_dir, admins[0]) if admins else None
+        for adm in admins:
             try:
-                build_admin(adm, clients, pws, built, out_dir, checked)
+                build_admin(adm, clients, pws, built, out_dir, checked, extra)
                 results.append((adm['id'], '관리자 화면 갱신'))
             except Exception as e:
                 results.append((adm['id'], f'관리자 화면 실패: {e}'))
@@ -512,8 +514,113 @@ def decrypt_file(path, password):
     key = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=b(blob['salt']), iterations=blob['iter']).derive(password.encode('utf-8'))
     return json.loads(AESGCM(key).decrypt(b(blob['iv']), b(blob['ct']), None))
 
-def build_admin(adm, clients, pws, built, out_dir, checked):
+# ---------- 관리자 화면: 발주내역 · 실출고내역 ----------
+# 관리자 표의 엑셀 두 가지에 쓸 데이터(관리자 파일에만 담는다. 고객사 파일에는 넣지 않는다).
+# - 두투미·곱창이야기: FL RELEASE(위탁 출고 박스 앱) 기록. 발주 = 등록된 발주 줄, 실출고 = 작업자가 입력한 박스
+# - 그 밖의 고객사: 발주 = 구글 시트 'GSFM_출고내역통합_자동화'(14:40 작업이 내려받은 파일), 실출고 = 수불 엑셀 출고내역(이미 rows 에 있음)
+# 관리자 설정에 "orders_source"(xlsx 경로)·"release"({"url", "env"})를 적으면 그 값이 우선.
+ORDERS_SRC = 'C:/dev/gsfm-run/ledger/source.xlsx'
+RELEASE = {'url': 'https://fl-release.vercel.app', 'env': 'C:/dev/FL_RELEASE/.env.import.local'}
+RELEASE_CLIENTS = ('두투미', '곱창이야기')    # FL RELEASE 의 고객사 이름(엑셀 경로나 화면 이름에 이 말이 있으면 그 고객사)
+KST = ZoneInfo('Asia/Seoul')
+
+def release_name(cfg):
+    where = str(cfg.get('file', '')) + ' ' + str(cfg.get('name', ''))
+    return next((n for n in RELEASE_CLIENTS if n in where), None)
+
+def sheet_orders(src_file, clients, base_dir):
+    """구글 시트 통합 출고내역에서 고객사별 발주 줄을 고른다(수불 자동 입력과 같은 판정. 보류·추정 줄도 발주이므로 모두 담는다)."""
+    import ledger_sync as ls
+    targets = [c for c in clients if c.get('sync') and c.get('kind') != 'admin' and c.get('portal') is not False]
+    if not targets: return {}
+    first = dt.date.fromisoformat(min(rows_from(c) for c in targets))
+    src = [r for r in ls.load_source(src_file) if r[0] >= first]
+    zone = {(r[0],) + tuple(r[2:7]): s(r[1]) for r in src}
+    made, cfg_of = [], {}
+    for cfg in targets:
+        try:
+            items, per, ledger, _ = ls.read_client(cfg, os.path.join(base_dir, cfg['file']))
+        except Exception as e:
+            print(cfg['name'], '발주내역 생략(수불 엑셀을 못 읽음):', e); continue
+        sy, L = cfg['sync'], ls.LAYOUT[cfg['kind']]
+        made.append(ls.Client(cfg['id'], sy.get('brands', []), sy.get('tags', []), items, sorted({x['점포'] for x in ledger if x['점포']}),
+                              L['base'], per, sy.get('aliases'), sy.get('pk_as_box', False), sy.get('exclude')))
+        cfg_of[cfg['id']] = cfg
+    out = {cid: [] for cid in cfg_of}
+    for m in ls.classify(src, made):
+        day = m['일자'].isoformat()
+        if day < rows_from(cfg_of[m['고객사']]): continue
+        out[m['고객사']].append({'d': day, 'z': zone.get((m['일자'], m['원본브랜드'], m['원본점포'], m['원본품목'], m['원본단위'], m['원본수량']), ''),
+                               'b': s(m['원본브랜드']), 's': s(m['원본점포']), 'i': s(m['원본품목']), 'u': s(m['원본단위']), 'q': m['원본수량'], 'm': m['품목']})
+    for v in out.values(): v.sort(key=lambda x: (x['d'], x['s'], x['i']))
+    return out
+
+def release_fetch(conf):
+    """FL RELEASE 전체 출고 기록(/api/export). 열쇠는 이 PC 의 .env.import.local(IMPORT_TOKEN)에서 읽고 어디에도 남기지 않는다."""
+    import urllib.request
+    token = next(l.split('=', 1)[1].strip() for l in open(conf['env'], encoding='utf-8-sig') if l.startswith('IMPORT_TOKEN='))
+    req = urllib.request.Request(conf['url'].rstrip('/') + '/api/export', headers={'Authorization': 'Bearer ' + token})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)['shipments']
+
+def release_rows(shipments, name, first):
+    """한 고객사의 FL RELEASE 기록 → (발주 줄, 실출고 줄). 실출고는 박스 칸마다 한 줄, 작업자가 아직 입력하지 않은 매장은 '미입력' 한 줄."""
+    num_text = lambda n: f'{n:g}' if isinstance(n, (int, float)) else s(n)
+    orders, shipped = [], []
+    for sh in sorted((x for x in shipments if x.get('client') == name and s(x.get('ship_date')) >= first), key=lambda x: (x['ship_date'], x['store_name'], x['id'])):
+        day, store, lines = sh['ship_date'][:10], s(sh.get('store_name')), sh.get('lines') or []
+        unit = {s(l.get('item')): s(l.get('unit')) for l in lines}
+        for l in lines:
+            orders.append({'d': day, 's': store, 'i': s(l.get('item')), 'q': l.get('quantity') or 0, 'u': s(l.get('unit')), 'n': s(l.get('note')), 'by': s(sh.get('created_by'))})
+        memo, by, at = s(sh.get('memo')), s(sh.get('completed_by')), ''
+        if sh.get('completed_at'):
+            at = dt.datetime.fromisoformat(str(sh['completed_at']).replace('Z', '+00:00')).astimezone(KST).strftime('%Y-%m-%d %H:%M')
+        boxes = sh.get('boxes')
+        if not at or boxes is None:
+            shipped.append({'d': day, 's': store, 'x': '미입력', 'memo': memo}); continue
+        if not boxes:
+            shipped.append({'d': day, 's': store, 'x': '박스 없음', 'at': at, 'by': by, 'memo': memo}); continue
+        for b in boxes:
+            its = [s(i) for i in b.get('items') or []]
+            qty = b.get('qty') or {}
+            shipped.append({'d': day, 's': store, 'i': ' / '.join(its), 'q': b.get('count') or 0,
+                            'p': '합포장' if b.get('packed') or len(its) > 1 else '',
+                            'c': ', '.join(f'{i} {num_text(qty[i])}{unit.get(i, "")}' for i in its if i in qty),
+                            'at': at, 'by': by, 'memo': memo})
+    return orders, shipped
+
+def order_data(clients, base_dir, adm):
+    """고객사 아이디별 {'orders': 발주 줄, 'orders_src', ['shipped': 실출고 줄]} 과 데이터 기준 시각. 못 읽은 쪽은 빠지고(이전 관리자 파일 값을 그대로 쓴다) 이유를 출력한다."""
+    out, at = {}, {}
+    src = adm.get('orders_source') or ORDERS_SRC
+    try:
+        for cid, rows in sheet_orders(src, clients, base_dir).items():
+            out[cid] = {'orders': rows, 'orders_src': 'sheet'}
+        at['sheet'] = dt.datetime.fromtimestamp(os.path.getmtime(src), KST).strftime('%Y-%m-%d %H:%M')
+    except Exception as e:
+        print('구글 시트 발주내역 생략(이전 데이터 유지):', e)
+    try:
+        ships = release_fetch(dict(RELEASE, **(adm.get('release') or {})))
+        for c in clients:
+            name = release_name(c)
+            if not name or c.get('kind') == 'admin' or c.get('stock_only') or c.get('portal') is False: continue
+            orders, shipped = release_rows(ships, name, rows_from(c))
+            out[c['id']] = {'orders': orders, 'orders_src': 'release', 'shipped': shipped}
+        at['release'] = dt.datetime.now(KST).strftime('%Y-%m-%d %H:%M')
+    except Exception as e:
+        print('FL RELEASE 발주·실출고 내역 생략(이전 데이터 유지):', e)
+    return out, at
+
+ORDER_KEYS = ('orders', 'orders_src', 'shipped')
+
+def build_admin(adm, clients, pws, built, out_dir, checked, extra=None):
     """관리자 계정: 모든 고객사 데이터를 한 파일에 담는다(이번에 안 만든 고객사는 기존 파일을 풀어서 쓴다). 시험용 계정(test)은 뺀다."""
+    extra, extra_at = extra or ({}, {})
+    old, old_at = {}, {}
+    try:                                        # 이번에 못 읽은 발주·실출고 데이터는 지난번 관리자 파일 것을 그대로 둔다
+        prev = decrypt_file(os.path.join(out_dir, id_hash(adm['id']) + '.json'), adm['pw'])
+        old, old_at = {c.get('account'): c for c in prev.get('clients', [])}, prev.get('orders_at') or {}
+    except Exception: pass
     out = []
     for c in clients:
         if c.get('kind') == 'admin' or c.get('test') or c.get('portal') is False or c['id'] not in pws: continue
@@ -525,12 +632,13 @@ def build_admin(adm, clients, pws, built, out_dir, checked):
         if pl is None: continue
         pl = dict(pl, account=c['id'], file=c.get('file'))
         if c.get('stock_only'): pl['name'] = c.get('admin_name') or pl['name'] + ' (가맹점용)'   # 재고만 보는 계정(점주용)은 이름을 구분해 본 계정 바로 아래에
+        else: pl.update(extra.get(c['id']) or {k: old[c['id']][k] for k in ORDER_KEYS if k in old.get(c['id'], {})})
         out.append(pl)
     main_of = {x['file']: i for i, x in enumerate(out) if not x.get('stock_only')}
     out = sorted(out, key=lambda x: (main_of.get(x['file'], len(out)) if x.get('stock_only') else out.index(x), bool(x.get('stock_only'))))
     for x in out: x.pop('file', None)
     payload = {'admin': True, 'name': adm.get('name', '관리자'), 'checked': checked, 'low': LOW_BOX,
-               'schedule': adm.get('schedule', []), 'clients': out}
+               'schedule': adm.get('schedule', []), 'orders_at': dict(old_at, **extra_at), 'clients': out}
     json.dump(encrypt(payload, adm['pw'], adm['id']), open(os.path.join(out_dir, id_hash(adm['id']) + '.json'), 'w'))
 
 if __name__ == '__main__':

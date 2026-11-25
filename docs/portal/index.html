@@ -570,8 +570,7 @@
       return tr;
     }));
     foot();
-    const at = A.orders_at || {}, when = (x) => (x ? ` (${md(x.slice(0, 10))} ${x.slice(11)} 기준)` : '');
-    $('a-xl-note').textContent = `정산 기간은 오늘이 들어 있는 정산 기간으로 맞춰져 있고, 날짜를 누르면 바꿀 수 있습니다. 정산료와 엑셀은 그 줄에서 고른 기간 기준입니다. 두투미·곱창이야기는 FL RELEASE 기록${when(at.release)}: 발주내역 = 등록된 발주, 실출고내역 = 작업자가 입력한 박스. 그 밖의 고객사는 발주내역 = 구글 시트 출고내역통합${when(at.sheet)}, 실출고내역 = 수불 엑셀 출고내역.`;
+    $('a-xl-note').textContent = '정산 기간은 오늘이 들어 있는 정산 기간으로 맞춰져 있고, 날짜를 누르면 바꿀 수 있습니다. 정산료와 엑셀은 그 줄에서 고른 기간 기준입니다.';
     $('a-sched-card').hidden = !(A.schedule || []).length;
     $('a-sched').replaceChildren(...(A.schedule || []).map((x) => el('li', '', x)));
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);

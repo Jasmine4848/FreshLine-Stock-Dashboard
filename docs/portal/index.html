@@ -194,18 +194,19 @@
   #admin-panel { display:grid; gap:16px; }
   #admin-panel[hidden] { display:none; }
   .scroll-x { overflow-x:auto; }
-  .admin-table { min-width:760px; }
+  .admin-table { min-width:620px; }
+  .admin-table .datebox { display:inline-flex; min-width:0; padding:5px 10px; font-size:inherit; }
+  .admin-table .tilde { margin:0 6px; color:var(--faint); }
   .admin-table td, .admin-table th { padding:11px 12px; }
   .admin-table td.r, .admin-table th.r { text-align:right; }
   .admin-table .go { background:none; border:0; padding:0; color:var(--accent); font-weight:700; cursor:pointer; font-size:inherit; text-decoration:underline; text-underline-offset:3px; }
-  .admin-table .n0 { color:var(--faint); }
-  .admin-table .nb { color:var(--bad); font-weight:700; } .admin-table .nw { color:var(--warn); font-weight:700; }
-  .watch { display:grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap:10px; }
-  .watch .w { border:1px solid var(--line); border-radius:var(--radius); padding:10px 14px; display:grid; gap:6px; align-content:start; }
-  .watch .w b { font-size:14px; }
-  .watch .w .row { font-size:13px; line-height:1.6; }
-  .watch .w .row span { display:inline-block; font-size:11.5px; font-weight:600; padding:1px 7px; border-radius:4px; margin-right:6px; }
-  .watch .w .row .b { color:var(--bad); background:var(--bad-soft); } .watch .w .row .wn { color:var(--warn); background:var(--warn-soft); }
+  .admin-table .xl { display:inline-grid; place-items:center; width:34px; height:34px; padding:0; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); cursor:pointer; }
+  .admin-table .xl:hover:not([disabled]) { border-color:#1d7a45; background:var(--ok-soft); }
+  .admin-table .xl svg { width:22px; height:22px; display:block; }
+  .admin-table .xl[disabled] { cursor:default; opacity:.35; filter:grayscale(1); }
+  .admin-table .xl.busy { cursor:wait; opacity:.6; }
+  .admin-table tfoot td { background:var(--head); border-top:2px solid var(--line-strong); font-weight:700; }
+  .admin-table tfoot small { font-weight:400; color:var(--faint); margin-left:6px; }
   .sched { margin:0; padding-left:18px; line-height:1.9; font-size:14px; }
   .ledger-box { max-height: 28rem; overflow:auto; border:1px solid var(--line); border-radius:var(--radius); }
   .ledger { table-layout:fixed; }
@@ -310,14 +311,12 @@
           <div class="card-head"><h2>고객사별 요약</h2><p class="note">고객사 이름을 누르면 그 고객사 화면을 그대로 볼 수 있습니다.</p></div>
           <div class="frame scroll-x">
             <table class="admin-table">
-              <thead><tr><th class="l">고객사</th><th class="c">기준일</th><th class="c">품목</th><th class="c">품절</th><th class="c">품절 예정</th><th class="c">정산 기간</th><th class="r">배송료</th><th class="c">로그인 아이디</th></tr></thead>
+              <thead><tr><th class="l">고객사</th><th class="c">정산 기간</th><th class="r">정산료</th><th class="c">발주내역</th><th class="c">실출고내역</th></tr></thead>
               <tbody id="a-body"></tbody>
+              <tfoot id="a-foot"></tfoot>
             </table>
           </div>
-        </section>
-        <section class="card">
-          <div class="card-head"><h2>확인 필요 품목</h2><p class="note">품절·품절 예정 품목을 고객사별로 모았습니다.</p></div>
-          <div class="watch" id="a-watch"></div>
+          <p class="note" id="a-xl-note"></p>
         </section>
         <section class="card" id="a-sched-card">
           <div class="card-head"><h2>자동 업데이트 일정</h2></div>
@@ -534,24 +533,45 @@
     $('bar-sub').textContent = '관리자'; $('back-admin').hidden = true;
     $('dash-view').classList.add('admin-mode'); $('admin-panel').hidden = false;
     const C = A.clients, md = (x) => x.slice(5).replace('-', '/');
-    $('a-count').textContent = C.filter((c) => !c.stock_only).length;   // 가맹점용(재고만) 계정은 고객사 수에서 뺀다 $('a-checked').textContent = A.checked;
+    $('a-count').textContent = C.filter((c) => !c.stock_only).length;   // 가맹점용(재고만) 계정은 고객사 수에서 뺀다
+    $('a-checked').textContent = A.checked;
+    const foot = () => {   // 맨 아래 줄: 전 고객사를 고객사별 시트로 나눠 한 파일로(줄마다 고른 기간 그대로)
+      const tr = el('tr'), nm = el('td', 'l', '전체 고객사'); nm.append(el('small', '', '고객사별 시트 · 한 파일'));
+      const dl = (kind) => { const td = el('td', 'c'); td.append(xlAllButton(kind)); return td; };
+      tr.append(nm, el('td', 'c', ''), el('td', 'r', ''), dl('orders'), dl('shipped'));
+      $('a-foot').replaceChildren(tr);
+    };
     $('a-body').replaceChildren(...C.map((c, i) => {
       const tr = el('tr');
       const nm = el('td', 'l'); const b = el('button', 'go', c.name); b.type = 'button'; b.addEventListener('click', () => { history.pushState({ client: c.account }, '', '#' + encodeURIComponent(c.account)); openClient(i); }); nm.append(b);
-      const o = c.stock.filter((s) => s['상태'] === '품절').length, w = c.stock.filter((s) => s['상태'] === '품절 예정').length;
-      tr.append(nm, el('td', 'c', `${md(c.asof)} (${wd(c.asof)})`), el('td', 'c', `${c.stock.length}종`),
-        el('td', 'c ' + (o ? 'nb' : 'n0'), String(o)), el('td', 'c ' + (w ? 'nw' : 'n0'), String(w)),
-        el('td', 'c', c.fee ? `${md(c.fee.from)} ~ ${md(c.fee.to)}` : '-'), el('td', 'r', c.fee ? `${fmt(c.fee.total)}원` : '-'), el('td', 'c', c.account));
+      if (!c.fee) { tr.append(nm, el('td', 'c', '-'), el('td', 'r', '-'), el('td', 'c', '-'), el('td', 'c', '-')); return tr; }
+      if (!c.period) c.period = lastPeriod(c);          // 처음에는 오늘이 들어 있는 정산 기간. 고른 날짜는 고객사 화면에 다녀와도 그대로 둔다
+      const per = el('td', 'c'), fee = el('td', 'r'), o = el('td', 'c'), s = el('td', 'c');
+      const box = (k, label) => {
+        const w = el('span', 'datebox'), txt = el('span', ''), inp = el('input');
+        inp.type = 'date'; inp.value = c.period[k]; inp.min = c.from || '2026-10-01'; inp.setAttribute('aria-label', `${c.name} ${label}`);
+        txt.textContent = md(inp.value);
+        inp.addEventListener('click', () => { try { inp.showPicker(); } catch (_) {} });
+        inp.addEventListener('change', () => {
+          if (!inp.value) { inp.value = c.period[k]; return; }
+          c.period[k] = inp.value;
+          if (c.period[0] > c.period[1]) c.period = [c.period[1], c.period[0]];
+          draw();
+        });
+        w.append(txt, inp); return w;
+      };
+      const draw = () => {
+        per.replaceChildren(box(0, '시작일'), el('span', 'tilde', '~'), box(1, '종료일'));
+        fee.textContent = `${fmt(periodFee(c))}원`;
+        o.replaceChildren(xlButton(c, 'orders')); s.replaceChildren(xlButton(c, 'shipped'));
+        foot();
+      };
+      tr.append(nm, per, fee, o, s); draw();
       return tr;
     }));
-    $('a-watch').replaceChildren(...C.filter((c) => !c.stock_only && c.stock.some((s) => s['상태'] !== '여유')).map((c) => {   // 가맹점용은 본 계정과 같은 재고라 중복이어서 뺀다
-      const box = el('div', 'w'); box.append(el('b', '', c.name));
-      for (const [st, cls] of [['품절', 'b'], ['품절 예정', 'wn']]) {
-        const names = c.stock.filter((s) => s['상태'] === st).map((s) => s['품목']);
-        if (names.length) { const r = el('div', 'row'); r.append(el('span', cls, st), names.join(', ')); box.append(r); }
-      }
-      return box;
-    }));
+    foot();
+    const at = A.orders_at || {}, when = (x) => (x ? ` (${md(x.slice(0, 10))} ${x.slice(11)} 기준)` : '');
+    $('a-xl-note').textContent = `정산 기간은 오늘이 들어 있는 정산 기간으로 맞춰져 있고, 날짜를 누르면 바꿀 수 있습니다. 정산료와 엑셀은 그 줄에서 고른 기간 기준입니다. 두투미·곱창이야기는 FL RELEASE 기록${when(at.release)}: 발주내역 = 등록된 발주, 실출고내역 = 작업자가 입력한 박스. 그 밖의 고객사는 발주내역 = 구글 시트 출고내역통합${when(at.sheet)}, 실출고내역 = 수불 엑셀 출고내역.`;
     $('a-sched-card').hidden = !(A.schedule || []).length;
     $('a-sched').replaceChildren(...(A.schedule || []).map((x) => el('li', '', x)));
     $('login-view').hidden = true; $('dash-view').hidden = false; window.scrollTo(0, 0);
@@ -965,6 +985,82 @@
     ws['!merges'] = merges;
     return ws;
   }
+  // ---------- 관리자: 발주내역 · 실출고내역 엑셀 ----------
+  // 그 고객사 정산 기간(c.fee.from ~ to)의 줄만 담는다. 두투미·곱창이야기는 FL RELEASE 기록, 그 밖은 발주 = 구글 시트 · 실출고 = 수불 엑셀 출고내역
+  const XL_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#1d7a45" d="M6 2h8.5L20 7.5V20a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path fill="#a6dbbd" d="M14.5 2 20 7.5h-4a1.5 1.5 0 0 1-1.5-1.5z"/><path fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" d="m8.6 11.2 5.8 7.2m0-7.2-5.8 7.2"/></svg>';
+  const XL_NAME = { orders: '발주내역', shipped: '실출고내역' };
+  // 기본 기간: 오늘 날짜가 들어 있는 정산 기간(조회 시작일보다 앞으로는 가지 않는다)
+  function lastPeriod(c) {
+    const start = c.from || '2026-10-01';
+    const [a, b] = periodOf(c.fee.cycle, iso(new Date()));
+    return [a < start ? start : a, b];
+  }
+  // 고른 기간의 정산료: 고객사 화면 배송료 합계와 같은 계산(제외 출고는 빼고, 용차 등 별도 청구는 더한다)
+  function periodFee(c) {
+    const [a, b] = c.period, inR = (x) => x.d >= a && x.d <= b;
+    return Math.round(c.fee.lines.filter((x) => inR(x) && !x.x).reduce((t, x) => t + x.a, 0) + (Array.isArray(c.fee.extra) ? c.fee.extra.filter(inR).reduce((t, x) => t + x.a, 0) : 0));
+  }
+  function xlRows(c, kind) {
+    const [a, b] = c.period || [c.fee.from, c.fee.to], inR = (d) => d >= a && d <= b;
+    if (kind === 'orders') {
+      const list = (c.orders || []).filter((x) => inR(x.d));
+      if (c.orders_src === 'release') return { src: 'FL RELEASE 등록 발주', head: ['출고일', '매장', '품목', '수량', '단위', '요청사항', '등록'], widths: [13, 20, 28, 9, 8, 26, 16], num: [3],
+        rows: list.map((x) => [x.d, x.s, x.i, x.q, x.u, x.n || '', x.by || '']) };
+      return { src: '구글 시트 GSFM_출고내역통합_자동화', head: ['출고일자', '권역', '브랜드', '점포명', '품목', '규격', '수량', '수불 품목'], widths: [13, 9, 16, 26, 34, 8, 9, 22], num: [6],
+        rows: list.map((x) => [x.d, x.z || '', x.b, x.s, x.i, x.u, x.q, x.m || '']) };
+    }
+    if (c.orders_src === 'release') {
+      const list = (c.shipped || []).filter((x) => inR(x.d));
+      const rows = list.map((x) => (x.x ? [x.d, x.s, '', '', `(${x.x})`, '', x.at || '', x.by || '', x.memo || ''] : [x.d, x.s, x.p || '', x.c || '', x.i, x.q, x.at, x.by, x.memo || '']));
+      if (rows.length) rows.push(['합계', '', '', '', '', list.reduce((t, x) => t + (x.q || 0), 0), '', '', '']);
+      return { src: 'FL RELEASE 작업자 입력', head: ['출고일', '매장', '포장', '담은 수량', '박스 구성', '박스 수', '입력 완료', '작업자', '메모'], widths: [13, 20, 9, 40, 34, 9, 18, 12, 24], num: [5], total: rows.length > 0, rows };
+    }
+    const list = c.rows.filter((r) => r['구분'] === '출고' && inR(r['일자']));
+    // 배송료를 박스로 정산하는데 수불 엑셀은 팩으로 적는 고객사(탄천갈매기)는 박스입수로 나눠 박스로 적는다. 박스로 나누어떨어지지 않는 낱팩 출고는 팩 그대로
+    const per = Object.fromEntries(c.stock.map((s) => [s['품목'], s['입수']]));
+    const inBox = (r) => { const p = per[r['품목']]; return c.fee.unit === '박스' && r['단위'] !== '박스' && p && r['수량'] % p === 0 ? [r['수량'] / p, '박스'] : [r['수량'], r['단위']]; };
+    return { src: '수불 엑셀 출고내역', head: ['일자', '점포명', '품목', '수량', '단위', '비고'], widths: [13, 26, 28, 9, 8, 30], num: [3],
+      rows: list.map((r) => [r['일자'], r['점포'], r['품목'], ...inBox(r), r['비고'] || '']) };
+  }
+  const xlHas = (c, kind) => !!c.fee && (kind === 'shipped' && c.orders_src !== 'release' ? true : Array.isArray(c[kind]));   // 수불 엑셀 출고내역은 늘 있다
+  function xlSheet(c, kind) {
+    const v = xlRows(c, kind), last = v.head.length - 1;
+    const rows = [[`${c.name} ${XL_NAME[kind]}`], [`정산 기간 ${(c.period || [c.fee.from])[0]} ~ ${(c.period || [0, c.fee.to])[1]} · ${v.src} 기준 · (주)프레시라인`], [], v.head, ...v.rows];
+    const merge = (r, c2) => ({ s: { r, c: 0 }, e: { r, c: c2 } });
+    return feeSheet(rows, v.widths, [merge(0, last), merge(1, last), ...(v.total ? [merge(rows.length - 1, 4)] : [])], v.num, !!v.total);
+  }
+  function xlMake(label, n, hasData, save) {
+    const b = el('button', 'xl'); b.type = 'button'; b.innerHTML = XL_ICON;
+    b.disabled = !n;
+    b.title = !hasData ? `${label}: 아직 데이터가 없습니다(다음 자동 업데이트 때 채워집니다)` : (n ? `${label} 엑셀 다운로드` : `${label}: 고른 기간에 내역이 없습니다`);
+    b.setAttribute('aria-label', b.title);
+    b.addEventListener('click', async () => {
+      b.classList.add('busy');
+      await loadXlsxStyle();
+      b.classList.remove('busy');
+      if (typeof XLSX === 'undefined') { $('a-xl-note').textContent = '엑셀 기능을 불러오지 못했습니다. 새로고침 후 다시 시도해 주세요.'; return; }
+      const wb = XLSX.utils.book_new();
+      XLSX.writeFile(wb, save(wb));
+    });
+    return b;
+  }
+  function xlButton(c, kind) {
+    const has = xlHas(c, kind);
+    return xlMake(`${c.name} ${XL_NAME[kind]}`, has ? xlRows(c, kind).rows.length : 0, has, (wb) => {
+      XLSX.utils.book_append_sheet(wb, xlSheet(c, kind), XL_NAME[kind]);
+      return `${c.name}_${XL_NAME[kind]}_${c.period[0]}_${c.period[1]}.xlsx`;
+    });
+  }
+  // 전체 고객사: 고객사마다 시트 하나(그 줄에서 고른 기간). 데이터가 있는 고객사만 담고, 기간에 내역이 없으면 머리글만 있는 시트
+  function xlAllButton(kind) {
+    const list = A.clients.filter((c) => xlHas(c, kind) && c.period);
+    const sheetName = (c) => c.name.replace(/[\/?*:\[\]]/g, ' ').slice(0, 31);
+    return xlMake(`전체 고객사 ${XL_NAME[kind]}`, list.reduce((t, c) => t + xlRows(c, kind).rows.length, 0), list.length > 0, (wb) => {
+      for (const c of list) XLSX.utils.book_append_sheet(wb, xlSheet(c, kind), sheetName(c));
+      return `전체고객사_${XL_NAME[kind]}_${A.checked.slice(0, 10)}.xlsx`;
+    });
+  }
+
   $('fee-dl').addEventListener('click', async () => {
     if (!D || !feeView) return;
     const btn = $('fee-dl'), label = $('fee-dl-text');
